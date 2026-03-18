@@ -1,0 +1,36 @@
+{
+  "name": "mindspace-3d",
+  "version": "1.0.0",
+  "description": "MindSpace 3D – AI Mental Wellness Platform. A full-stack web application to help manage stress and improve mental health.",
+  "main": "server/server.js",
+  "scripts": {
+    "start": "NODE_OPTIONS=--dns-result-order=ipv4first node server/server.js",
+    "dev": "NODE_OPTIONS=--dns-result-order=ipv4first nodemon server/server.js",
+    "seed": "node server/seed.js"
+  },
+  "keywords": [
+    "mental-health",
+    "wellness",
+    "3d",
+    "threejs",
+    "meditation",
+    "mood-tracker",
+    "chatbot"
+  ],
+  "author": "Rahul",
+  "license": "MIT",
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.0",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.7.0",
+    "morgan": "^1.10.0",
+    "node-fetch": "^3.3.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.7"
+  }
+}
