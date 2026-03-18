@@ -418,7 +418,7 @@ a:hover {
 .input-group input {
   width: 100%;
   padding: 14px 14px 14px 45px;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--glass-bg);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-sm);
   color: var(--text-primary);
@@ -806,8 +806,8 @@ a:hover {
   gap: 12px;
   padding: 12px;
   border-radius: var(--radius-sm);
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
 }
 
 .activity-item-card .activity-emoji {
@@ -1095,8 +1095,8 @@ a:hover {
 .assistant-visual {
   width: 140px;
   height: 140px;
-  background: radial-gradient(circle at 30% 30%, rgba(76, 181, 108, 0.12), rgba(255, 255, 255, 0.03));
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: radial-gradient(circle at 30% 30%, rgba(76, 181, 108, 0.12), var(--glass-bg));
+  border: 1px solid var(--glass-border);
   border-radius: 16px;
   display: grid;
   place-items: center;
@@ -1297,19 +1297,25 @@ a:hover {
 .suggestion-chip {
   padding: 8px 16px;
   border-radius: 20px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.72);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  color: var(--text-secondary);
   font-family: inherit;
   font-size: 0.85rem;
   cursor: pointer;
   transition: var(--transition);
 }
 
+body:not(.dark-mode) .suggestion-chip {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.1);
+  color: var(--text-primary);
+}
+
 .suggestion-chip:hover {
-  background: rgba(34, 226, 121, 0.12);
-  border-color: rgba(34, 226, 121, 0.45);
-  color: #1db954;
+  background: rgba(34, 226, 121, 0.2);
+  border-color: rgba(34, 226, 121, 0.5);
+  color: var(--primary);
 }
 
 /* ═══════════ BREATHING & MEDITATION ═══════════ */

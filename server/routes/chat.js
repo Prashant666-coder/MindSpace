@@ -18,8 +18,8 @@ router.post('/chat', async (req, res) => {
     const { GoogleGenerativeAI } = require('@google/generative-ai');
     const genAI = new GoogleGenerativeAI(apiKey);
 
-    // Using the available gemini-2.5-flash model to avoid quota errors
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    // Using the available gemini-1.5-flash model to avoid quota errors
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
     const promptText = `You are an empathetic, supportive, and grounded listener. Keep your responses concise, warm, and helpful. Do not use emojis.\n\nUser: ${message}`;
 
