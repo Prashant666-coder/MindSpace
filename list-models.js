@@ -1,4 +1,4 @@
-require('dotenv').config({ path: '/home/rahul/Downloads/mini project/.env' });
+require('dotenv').config();
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 async function run() {
