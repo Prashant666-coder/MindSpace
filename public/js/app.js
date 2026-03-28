@@ -939,7 +939,7 @@
   });
 
   // Handle form submission
-  document.getElementById('checkout-form').addEventListener('submit', (e) => {
+  document.getElementById('checkout-form').addEventListener('submit', async (e) => {
     e.preventDefault();
 
     const name = document.getElementById('checkout-name').value.trim();
@@ -974,37 +974,121 @@
     // Animate button
     const submitBtn = document.getElementById('checkout-submit-btn');
     submitBtn.disabled = true;
-    submitBtn.textContent = '⏳ Placing Order...';
+    const originalBtnText = submitBtn.innerHTML;
+    submitBtn.textContent = '⏳ Processing...';
 
-    // Simulate order processing (1.5 seconds)
-    setTimeout(() => {
-      submitBtn.disabled = false;
-      submitBtn.textContent = '✅ Place Order';
+    const product = state.checkoutProduct;
+    const orderDetails = { name, phone, address, city, state: stateVal, pincode, payment, product };
 
-      const product = state.checkoutProduct;
-      const orderId = 'MS' + Date.now().toString().slice(-8).toUpperCase();
-      const paymentLabels = { cod: 'Cash on Delivery', upi: 'UPI', card: 'Card', netbanking: 'Net Banking' };
+    if (payment === 'razorpay') {
+      try {
+        // 1. Get Razorpay Key
+        const keyData = await apiRequest('/payment/key');
+        const RAZORPAY_KEY = keyData.key;
 
-      // Show success modal
-      closeCheckout();
-      document.getElementById('order-details-box').innerHTML = `
-        <div class="order-detail-row"><span>Order ID</span><strong>#${orderId}</strong></div>
-        <div class="order-detail-row"><span>Product</span><strong>${escapeHtml(product.name)}</strong></div>
-        <div class="order-detail-row"><span>Amount</span><strong>₹${product.price}</strong></div>
-        <div class="order-detail-row"><span>Payment</span><strong>${paymentLabels[payment]}</strong></div>
-        <div class="order-detail-row"><span>Deliver To</span><strong>${escapeHtml(address)}, ${escapeHtml(city)}, ${escapeHtml(stateVal)} - ${pincode}</strong></div>
-        <div class="order-detail-row"><span>Phone</span><strong>${phone}</strong></div>
-      `;
+        // 2. Create Order
+        const orderData = await apiRequest('/payment/order', {
+          method: 'POST',
+          body: JSON.stringify({
+            amount: product.price,
+            productId: product._id || product.name
+          })
+        });
 
-      // Reset form
-      document.getElementById('checkout-form').reset();
+        // 3. Open Razorpay Checkout
+        const options = {
+          key: RAZORPAY_KEY,
+          amount: orderData.amount,
+          currency: orderData.currency,
+          name: "MindSpace 3D",
+          description: `Purchase of ${product.name}`,
+          image: "/logo.jpeg",
+          order_id: orderData.id,
+          handler: async function (response) {
+            // 4. Verify Payment
+            try {
+              submitBtn.textContent = '⏳ Verifying Payment...';
+              const verification = await apiRequest('/payment/verify', {
+                method: 'POST',
+                body: JSON.stringify({
+                  razorpay_order_id: response.razorpay_order_id,
+                  razorpay_payment_id: response.razorpay_payment_id,
+                  razorpay_signature: response.razorpay_signature
+                })
+              });
 
-      orderSuccessModal.style.display = 'flex';
-      document.body.style.overflow = 'hidden';
+              if (verification.status === 'success') {
+                showSuccessModal(orderDetails, response.razorpay_order_id);
+              } else {
+                throw new Error('Payment verification failed');
+              }
+            } catch (err) {
+              showToast('Payment verification failed. Please contact support.', 'error');
+              submitBtn.disabled = false;
+              submitBtn.innerHTML = originalBtnText;
+            }
+          },
+          prefill: {
+            name: name,
+            contact: phone,
+            email: state.user?.email || ""
+          },
+          theme: {
+            color: "#7c3aed"
+          },
+          modal: {
+            ondismiss: function() {
+              submitBtn.disabled = false;
+              submitBtn.innerHTML = originalBtnText;
+            }
+          }
+        };
 
-      showToast(`Order placed for ${product.name}! 🎉`, 'success');
-    }, 1500);
+        const rzp = new Razorpay(options);
+        rzp.open();
+      } catch (err) {
+        console.error('Razorpay Init Error:', err);
+        showToast('Failed to initialize payment. Try again.', 'error');
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = originalBtnText;
+      }
+    } else {
+      // Simulate COD processing
+      setTimeout(() => {
+        showSuccessModal(orderDetails, 'MS' + Date.now().toString().slice(-8).toUpperCase());
+      }, 1500);
+    }
   });
+
+  function showSuccessModal(details, orderId) {
+    const submitBtn = document.getElementById('checkout-submit-btn');
+    submitBtn.disabled = false;
+    submitBtn.innerHTML = '<i data-lucide="check-circle"></i> Place Order';
+
+    const paymentLabels = { cod: 'Cash on Delivery', razorpay: 'Razorpay (Online)' };
+
+    // Show success modal
+    closeCheckout();
+    document.getElementById('order-details-box').innerHTML = `
+      <div class="order-detail-row"><span>Order ID</span><strong>#${orderId}</strong></div>
+      <div class="order-detail-row"><span>Product</span><strong>${escapeHtml(details.product.name)}</strong></div>
+      <div class="order-detail-row"><span>Amount</span><strong>₹${details.product.price}</strong></div>
+      <div class="order-detail-row"><span>Payment</span><strong>${paymentLabels[details.payment]}</strong></div>
+      <div class="order-detail-row"><span>Deliver To</span><strong>${escapeHtml(details.address)}, ${escapeHtml(details.city)}, ${escapeHtml(details.state)} - ${details.pincode}</strong></div>
+      <div class="order-detail-row"><span>Phone</span><strong>${details.phone}</strong></div>
+    `;
+
+    // Reset form
+    document.getElementById('checkout-form').reset();
+
+    orderSuccessModal.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+
+    showToast(`Order placed for ${details.product.name}! 🎉`, 'success');
+    
+    // Refresh Lucide Icons in modal
+    if (window.lucide) lucide.createIcons();
+  }
 
   // ═══════════ ACTIVITIES MAP ═══════════
   function initMap() {

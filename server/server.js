@@ -19,6 +19,7 @@ const moodRoutes = require('./routes/mood');
 const journalRoutes = require('./routes/journal');
 const productRoutes = require('./routes/products');
 const chatRoutes = require('./routes/chat');
+const paymentRoutes = require('./routes/payment');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -37,6 +38,7 @@ app.use('/api/auth', authRoutes);       // Authentication (register, login)
 app.use('/api/mood', moodRoutes);       // Mood tracking CRUD
 app.use('/api/journal', journalRoutes); // Journal entries CRUD
 app.use('/api/products', productRoutes); // Shop products listing
+app.use('/api/payment', paymentRoutes); // Razorpay payment routes
 app.use('/api', chatRoutes);            // Chatbot endpoint
 
 // Health check endpoint
