@@ -188,6 +188,11 @@
     item.addEventListener('click', () => {
       const section = item.dataset.section;
       switchSection(section);
+      
+      // Auto-close sidebar on mobile after navigation
+      if (window.innerWidth <= 768) {
+        sidebar.classList.remove('active');
+      }
     });
   });
 
@@ -210,8 +215,29 @@
 
   // Sidebar toggle
   const sidebar = document.getElementById('sidebar');
-  document.getElementById('sidebar-toggle').addEventListener('click', () => {
-    sidebar.classList.toggle('collapsed');
+  const sidebarToggle = document.getElementById('sidebar-toggle');
+  const mobileMenuToggle = document.getElementById('mobile-menu-toggle');
+
+  if (sidebarToggle) {
+    sidebarToggle.addEventListener('click', () => {
+      sidebar.classList.toggle('collapsed');
+    });
+  }
+
+  if (mobileMenuToggle) {
+    mobileMenuToggle.addEventListener('click', () => {
+      sidebar.classList.toggle('active');
+    });
+  }
+
+  // Close sidebar when clicking outside on mobile
+  document.addEventListener('click', (e) => {
+    if (window.innerWidth <= 768 && 
+        sidebar.classList.contains('active') && 
+        !sidebar.contains(e.target) && 
+        !mobileMenuToggle.contains(e.target)) {
+      sidebar.classList.remove('active');
+    }
   });
 
   // ═══════════ GREETING ═══════════
@@ -783,7 +809,7 @@
       { name: 'Weighted Blanket – 15 lbs', description: 'Glass bead weighted blanket for deep pressure stimulation.', price: 4999, category: 'accessories', rating: 5, image: '' },
       { name: 'Tibetan Singing Bowl', description: 'Hand-hammered singing bowl for meditation and sound healing.', price: 3749, category: 'meditation', rating: 5, image: '' },
       { name: 'Resistance Band Set', description: 'Color-coded resistance bands for stress-relieving workouts.', price: 1649, category: 'fitness', rating: 4, image: '' },
-      { name: 'Aromatherapy Candle Set', description: 'Set of 4 soy wax candles in calming scents.', price: 2349, category: 'aromatherapy', rating: 4, image: '' },
+      { name: 'Aromatherapy Candle Set', description: 'Set of 4 soy wax candles in calming scents.', price: 2349, category: 'aromatherapy', rating: 4, image: '/Users/prashanttripathi/.gemini/antigravity/brain/cae8f9f6-515f-42c8-b2c6-0b0e727e46df/aromatherapy_candle_set_1774429016560.png' },
       { name: 'Gratitude Card Deck', description: 'Weekly gratitude prompts in a beautiful card deck.', price: 1249, category: 'journal', rating: 4, image: '' }
     ];
   }

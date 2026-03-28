@@ -130,7 +130,7 @@
     const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
     const data = buffer.getChannelData(0);
     for (let i = 0; i < bufferSize; i++) {
-        data[i] = (Math.random() * 2 - 1) * 0.025;
+      data[i] = (Math.random() * 2 - 1) * 0.025;
     }
     const windNoise = audioCtx.createBufferSource();
     windNoise.buffer = buffer;
@@ -145,7 +145,7 @@
     nodes.push(windNoise);
 
     // Add interval to nodes cleanup (custom handling)
-    nodes.push({ stop: () => clearInterval(interval), disconnect: () => {} });
+    nodes.push({ stop: () => clearInterval(interval), disconnect: () => { } });
 
     return nodes;
   }
@@ -602,8 +602,8 @@
 
     // Stop all audio nodes
     currentTrackNodes.forEach(node => {
-      try { node.stop(); } catch (e) {}
-      try { node.disconnect(); } catch (e) {}
+      try { node.stop(); } catch (e) { }
+      try { node.disconnect(); } catch (e) { }
     });
     currentTrackNodes = [];
 
@@ -677,8 +677,16 @@
       if (value === 0 && mixerSources[sound]) {
         // Stop this sound
         if (mixerSources[sound].interval) clearInterval(mixerSources[sound].interval);
-        try { mixerSources[sound].source.stop(); } catch (e) {}
-        try { mixerSources[sound].source.disconnect(); } catch (e) {}
+        try { mixerSources[sound].source.stop(); } catch (e) { }
+        try { mixerSources[sound].source.disconnect(); } catch (e) { }
+        if (mixerSources[sound].lfo) {
+          try { mixerSources[sound].lfo.stop(); } catch (e) { }
+          try { mixerSources[sound].lfo.disconnect(); } catch (e) { }
+        }
+        if (mixerSources[sound].gustLfo) {
+          try { mixerSources[sound].gustLfo.stop(); } catch (e) { }
+          try { mixerSources[sound].gustLfo.disconnect(); } catch (e) { }
+        }
         delete mixerSources[sound];
         return;
       }
@@ -688,9 +696,17 @@
         const bufferSize = audioCtx.sampleRate * 2;
         const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
         const data = buffer.getChannelData(0);
+        let lastOut = 0; // Accumulator for Brown Noise
 
         for (let i = 0; i < bufferSize; i++) {
-          data[i] = Math.random() * 2 - 1;
+          if (sound === 'fire') {
+            // Generate Brown Noise (integrated white noise) for deeper fire roar
+            let white = Math.random() * 2 - 1;
+            lastOut = (lastOut + (0.02 * white)) / 1.02;
+            data[i] = lastOut * 1.5;
+          } else {
+            data[i] = Math.random() * 2 - 1;
+          }
         }
 
         const source = audioCtx.createBufferSource();
@@ -705,8 +721,8 @@
           rain: { type: 'bandpass', freq: 2000, q: 0.3 },
           waves: { type: 'lowpass', freq: 600, q: 0.5 },
           birds: { type: 'highpass', freq: 3000, q: 0.2 },
-          fire: { type: 'bandpass', freq: 800, q: 0.8 },
-          wind: { type: 'lowpass', freq: 300, q: 0.3 }
+          fire: { type: 'bandpass', freq: 600, q: 0.4 },
+          wind: { type: 'lowpass', freq: 400, q: 0.2 }
         };
 
         const config = soundConfigs[sound] || { type: 'lowpass', freq: 1000, q: 0.5 };
@@ -714,14 +730,39 @@
         filter.frequency.value = config.freq;
         filter.Q.value = config.q;
 
-        gain.gain.value = value * 0.15;
+        gain.gain.value = value * 0.4; // Boosted volume
+
+        mixerSources[sound] = { source, filter, gain, currentValue: value };
 
         if (sound !== 'birds') {
           source.connect(filter).connect(gain).connect(masterGain);
+
+          // Add subtle volume modulation for fire to simulate flickering
+          if (sound === 'fire') {
+            const lfo = audioCtx.createOscillator();
+            const lfoGain = audioCtx.createGain();
+            lfo.type = 'sine';
+            lfo.frequency.value = 0.5 + Math.random(); // Slow flicker
+            lfoGain.gain.value = 0.08; // Deeper modulation
+            lfo.connect(lfoGain).connect(gain.gain);
+            lfo.start();
+            mixerSources[sound].lfo = lfo;
+          }
+
+          // Add wind movement (gusts)
+          if (sound === 'wind') {
+            const gustLfo = audioCtx.createOscillator();
+            const gustGain = audioCtx.createGain();
+            gustLfo.type = 'sine';
+            gustLfo.frequency.value = 0.1; // Very slow gusts
+            gustGain.gain.value = 200; // Frequency range
+            gustLfo.connect(gustGain).connect(filter.frequency);
+            gustLfo.start();
+            mixerSources[sound].gustLfo = gustLfo;
+          }
+
           source.start();
         }
-
-        mixerSources[sound] = { source, filter, gain, currentValue: value };
 
         // Special dynamic effects for birds and fire
         if (sound === 'birds') {
@@ -738,9 +779,9 @@
           }, 400);
         }
       } else if (value > 0 && mixerSources[sound]) {
-        // Update volume
+        // Update volume smoothly
         mixerSources[sound].currentValue = value;
-        mixerSources[sound].gain.gain.value = value * 0.15;
+        mixerSources[sound].gain.gain.setTargetAtTime(value * 0.4, audioCtx.currentTime, 0.1);
       }
     });
   });
@@ -778,10 +819,14 @@
     source.buffer = buffer;
     const gain = audioCtx.createGain();
 
-    gain.gain.setValueAtTime(volume * 0.08, audioCtx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.02);
+    gain.gain.setValueAtTime(volume * 0.25, audioCtx.currentTime); // Boosted crackle
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.012);
 
-    source.connect(gain).connect(masterGain);
+    const filter = audioCtx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 2000; // Slightly brighter pop
+
+    source.connect(filter).connect(gain).connect(masterGain);
     source.start();
   }
 
