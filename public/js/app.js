@@ -971,7 +971,7 @@
 
     errorEl.style.display = 'none';
 
-    // Animate button
+    // Animate button — disable immediately to prevent double-submit
     const submitBtn = document.getElementById('checkout-submit-btn');
     submitBtn.disabled = true;
     const originalBtnText = submitBtn.innerHTML;
@@ -981,6 +981,13 @@
     const orderDetails = { name, phone, address, city, state: stateVal, pincode, payment, product };
 
     if (payment === 'razorpay') {
+      // Check if Razorpay SDK is loaded
+      if (typeof window.Razorpay === 'undefined') {
+        showToast('Payment gateway not loaded. Check your internet connection and try again.', 'error');
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = originalBtnText;
+        return;
+      }
       try {
         // 1. Get Razorpay Key
         const keyData = await apiRequest('/payment/key');
@@ -1013,11 +1020,13 @@
                 body: JSON.stringify({
                   razorpay_order_id: response.razorpay_order_id,
                   razorpay_payment_id: response.razorpay_payment_id,
-                  razorpay_signature: response.razorpay_signature
+                  razorpay_signature: response.razorpay_signature,
+                  customerDetails: { name, phone, address, city, state: stateVal, pincode },
+                  productDetails: { id: product._id || product.name, name: product.name, price: product.price }
                 })
               });
 
-              if (verification.status === 'success') {
+              if (verification.status === 'success' || verification.status === 'partial_success') {
                 showSuccessModal(orderDetails, response.razorpay_order_id);
               } else {
                 throw new Error('Payment verification failed');
@@ -1048,7 +1057,10 @@
         rzp.open();
       } catch (err) {
         console.error('Razorpay Init Error:', err);
-        showToast('Failed to initialize payment. Try again.', 'error');
+        const errMsg = err?.message?.includes('Request failed')
+          ? 'Could not connect to payment server. Make sure you are logged in or try again.'
+          : 'Failed to initialize payment. Check your internet connection and try again.';
+        showToast(errMsg, 'error');
         submitBtn.disabled = false;
         submitBtn.innerHTML = originalBtnText;
       }
