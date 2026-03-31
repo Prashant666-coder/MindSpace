@@ -698,13 +698,32 @@
         const data = buffer.getChannelData(0);
         let lastOut = 0; // Accumulator for Brown Noise
 
-        for (let i = 0; i < bufferSize; i++) {
-          if (sound === 'fire') {
-            // Generate Brown Noise (integrated white noise) for deeper fire roar
+        if (soundConfigs[sound]?.noise === 'brown') {
+          // Brown Noise (Integrated White Noise) - Deep rumble
+          for (let i = 0; i < bufferSize; i++) {
             let white = Math.random() * 2 - 1;
             lastOut = (lastOut + (0.02 * white)) / 1.02;
-            data[i] = lastOut * 1.5;
-          } else {
+            data[i] = lastOut * 3.0; // Boosted for warmth
+          }
+        } else if (soundConfigs[sound]?.noise === 'pink') {
+          // Pink Noise approximation for Wind
+          let b0, b1, b2, b3, b4, b5, b6;
+          b0 = b1 = b2 = b3 = b4 = b5 = b6 = 0.0;
+          for (let i = 0; i < bufferSize; i++) {
+            let white = Math.random() * 2 - 1;
+            b0 = 0.99886 * b0 + white * 0.0555179;
+            b1 = 0.99332 * b1 + white * 0.0750759;
+            b2 = 0.96900 * b2 + white * 0.1538520;
+            b3 = 0.86650 * b3 + white * 0.3104856;
+            b4 = 0.55000 * b4 + white * 0.5329522;
+            b5 = -0.7616 * b5 - white * 0.0168980;
+            data[i] = b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362;
+            data[i] *= 0.11;
+            b6 = white * 0.115926;
+          }
+        } else {
+          // White Noise - Sharp texture
+          for (let i = 0; i < bufferSize; i++) {
             data[i] = Math.random() * 2 - 1;
           }
         }
@@ -718,11 +737,11 @@
 
         // Different filter settings per sound type
         const soundConfigs = {
-          rain: { type: 'bandpass', freq: 2000, q: 0.3 },
-          waves: { type: 'lowpass', freq: 600, q: 0.5 },
-          birds: { type: 'highpass', freq: 3000, q: 0.2 },
-          fire: { type: 'bandpass', freq: 600, q: 0.4 },
-          wind: { type: 'lowpass', freq: 400, q: 0.2 }
+          rain: { type: 'bandpass', freq: 1800, q: 0.2, noise: 'white' },
+          waves: { type: 'lowpass', freq: 500, q: 0.4, noise: 'white' },
+          birds: { type: 'highpass', freq: 3000, q: 0.2, noise: 'white' },
+          fire: { type: 'bandpass', freq: 450, q: 0.6, noise: 'brown' },
+          wind: { type: 'lowpass', freq: 350, q: 0.3, noise: 'pink' }
         };
 
         const config = soundConfigs[sound] || { type: 'lowpass', freq: 1000, q: 0.5 };
@@ -737,28 +756,51 @@
         if (sound !== 'birds') {
           source.connect(filter).connect(gain).connect(masterGain);
 
-          // Add subtle volume modulation for fire to simulate flickering
+          // FIRE: Flickering and High-Freq CRACKLES
           if (sound === 'fire') {
-            const lfo = audioCtx.createOscillator();
-            const lfoGain = audioCtx.createGain();
-            lfo.type = 'sine';
-            lfo.frequency.value = 0.5 + Math.random(); // Slow flicker
-            lfoGain.gain.value = 0.08; // Deeper modulation
-            lfo.connect(lfoGain).connect(gain.gain);
-            lfo.start();
-            mixerSources[sound].lfo = lfo;
+            const flickerLfo = audioCtx.createOscillator();
+            const flickerGain = audioCtx.createGain();
+            flickerLfo.type = 'sine';
+            flickerLfo.frequency.value = 0.8 + Math.random() * 0.4;
+            flickerGain.gain.value = 0.1;
+            flickerLfo.connect(flickerGain).connect(gain.gain);
+            flickerLfo.start();
+            mixerSources[sound].lfo = flickerLfo;
           }
 
-          // Add wind movement (gusts)
+          // WIND: Resonant Whistle (Howling)
           if (sound === 'wind') {
-            const gustLfo = audioCtx.createOscillator();
-            const gustGain = audioCtx.createGain();
-            gustLfo.type = 'sine';
-            gustLfo.frequency.value = 0.1; // Very slow gusts
-            gustGain.gain.value = 200; // Frequency range
-            gustLfo.connect(gustGain).connect(filter.frequency);
-            gustLfo.start();
-            mixerSources[sound].gustLfo = gustLfo;
+            const whistleFilter = audioCtx.createBiquadFilter();
+            whistleFilter.type = 'bandpass';
+            whistleFilter.frequency.value = 2500;
+            whistleFilter.Q.value = 15; // Very resonant for whistling
+
+            const whistleGain = audioCtx.createGain();
+            whistleGain.gain.value = 0; // Starts silent
+
+            const whistleLfo = audioCtx.createOscillator();
+            const whistleLfoGain = audioCtx.createGain();
+            whistleLfo.frequency.value = 0.05;
+            whistleLfoGain.gain.value = 800; // Sweep freq
+            whistleLfo.connect(whistleLfoGain).connect(whistleFilter.frequency);
+            
+            source.connect(whistleFilter).connect(whistleGain).connect(masterGain);
+            whistleLfo.start();
+            mixerSources[sound].whistleFilter = whistleFilter;
+            mixerSources[sound].whistleGain = whistleGain;
+            mixerSources[sound].whistleLfo = whistleLfo;
+          }
+
+          // WAVES: Slow Ebb and Flow (8 second cycles)
+          if (sound === 'waves') {
+            const waveLfo = audioCtx.createOscillator();
+            const waveLfoGain = audioCtx.createGain();
+            waveLfo.type = 'sine';
+            waveLfo.frequency.value = 0.125; // 8 second cycle
+            waveLfoGain.gain.value = 0.2; 
+            waveLfo.connect(waveLfoGain).connect(gain.gain);
+            waveLfo.start();
+            mixerSources[sound].waveLfo = waveLfo;
           }
 
           source.start();
@@ -773,10 +815,13 @@
           }, 1200);
         } else if (sound === 'fire') {
           mixerSources[sound].interval = setInterval(() => {
-            if (mixerSources[sound] && Math.random() > 0.3) {
+            if (mixerSources[sound] && Math.random() > 0.4) {
               playFireCrackle(mixerSources[sound].currentValue);
             }
-          }, 400);
+          }, 450);
+        } else if (sound === 'wind' && mixerSources[sound].whistleGain) {
+          // Dynamic whistle volume linked to overall wind strength
+          mixerSources[sound].whistleGain.gain.setTargetAtTime(value * 0.15, audioCtx.currentTime, 0.5);
         }
       } else if (value > 0 && mixerSources[sound]) {
         // Update volume smoothly
@@ -808,12 +853,6 @@
 
   function playFireCrackle(volume) {
     if (!audioCtx) return;
-    const bufferSize = audioCtx.sampleRate * 0.02;
-    const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
-    const data = buffer.getChannelData(0);
-    for (let i = 0; i < bufferSize; i++) {
-      data[i] = (Math.random() * 2 - 1) * 0.5;
-    }
 
     const source = audioCtx.createBufferSource();
     source.buffer = buffer;
