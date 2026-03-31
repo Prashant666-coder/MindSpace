@@ -22,8 +22,13 @@ const orderSchema = new mongoose.Schema({
     type: String,
     required: true
   },
-  // Reference to the product being purchased
-  product: {
+  // Reference to the user who placed the order (optional for guests)
+  user: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  },
+  // Sub-items in the order
+  items: [{
     id: {
       type: String,
       required: true
@@ -31,10 +36,22 @@ const orderSchema = new mongoose.Schema({
     name: {
       type: String,
       required: true
+    },
+    price: {
+      type: Number,
+      required: true
+    },
+    quantity: {
+      type: Number,
+      required: true,
+      default: 1
+    },
+    image: {
+      type: String
     }
-  },
-  // Amount paid in INR
-  amount: {
+  }],
+  // Final total amount paid in INR
+  totalAmount: {
     type: Number,
     required: true
   },

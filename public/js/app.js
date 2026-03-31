@@ -17,6 +17,10 @@
     moodHistory: JSON.parse(localStorage.getItem('mindspace_moods') || '[]'),
     journalEntries: JSON.parse(localStorage.getItem('mindspace_journals') || '[]'),
     products: [],
+    cart: JSON.parse(localStorage.getItem('mindspace_cart') || '[]'),
+    orderHistory: [],
+    localOrderHistory: JSON.parse(localStorage.getItem('mindspace_orders') || '[]'),
+    currentShopView: 'store', // 'store' or 'orders'
     sessions: parseInt(localStorage.getItem('mindspace_sessions') || '0'),
     streak: parseInt(localStorage.getItem('mindspace_streak') || '0'),
     theme: localStorage.getItem('mindspace_theme') || 'light',
@@ -167,6 +171,8 @@
     updateGreeting();
     loadDashboardData();
     loadProducts();
+    renderCart(); // Initial cart render
+    if (state.token) loadOrderHistory();
   }
 
   // Logout
@@ -826,7 +832,6 @@
     }
 
     grid.innerHTML = filtered.map((p, idx) => {
-      // Generate gradient placeholders for products without images
       const gradients = [
         'linear-gradient(135deg, #667eea, #764ba2)',
         'linear-gradient(135deg, #f093fb, #f5576c)',
@@ -840,7 +845,17 @@
         ? `background-image: url(${p.image}); background-size: cover; background-position: center;`
         : `background: ${randomGrad}; display: flex; align-items: center; justify-content: center; font-size: 3rem;`;
       const imgContent = p.image ? '' : getCategoryEmoji(p.category);
-      const productIndex = state.products.indexOf(p);
+      const productIndex = idx;
+      const productId = p._id || p.name;
+      const cartItem = state.cart.find(item => item.id === productId);
+
+      const actionButtons = cartItem 
+        ? `<div class="product-qty-selector">
+             <button class="qty-btn" onclick="window.MindSpace.updateCartQty('${productId}', -1)">−</button>
+             <span class="qty-display">${cartItem.quantity}</span>
+             <button class="qty-btn" onclick="window.MindSpace.updateCartQty('${productId}', 1)">+</button>
+           </div>`
+        : `<button class="btn btn-primary" style="width: 100%;" onclick="window.MindSpace.addToCart(${idx})">🛒 Add to Cart</button>`;
 
       return `
         <div class="product-card">
@@ -851,13 +866,260 @@
             <p>${escapeHtml(p.description)}</p>
             <div class="product-meta">
               <span class="product-price">₹${p.price}</span>
-              <span class="product-rating">${'★'.repeat(p.rating)}${'☆'.repeat(5 - p.rating)}</span>
+              <div class="product-rating">${'★'.repeat(p.rating)}${'☆'.repeat(5 - p.rating)}</div>
             </div>
-            <button class="btn btn-primary buy-now-btn" onclick="window.MindSpace.openCheckout(${productIndex})">🛒 Buy Now</button>
+            <div class="shop-card-btns">
+              ${actionButtons}
+            </div>
           </div>
         </div>
       `;
     }).join('');
+  }
+
+  // ═══════════ CART MANAGEMENT ═══════════
+  function toggleCart() {
+    const sidebar = document.getElementById('cart-sidebar');
+    const overlay = document.getElementById('cart-overlay');
+    sidebar.classList.toggle('active');
+    overlay.classList.toggle('active');
+  }
+
+  function addToCart(productIndex) {
+    const product = state.products[productIndex];
+    if (!product) return;
+
+    const existing = state.cart.find(item => item.id === (product._id || product.name));
+    if (existing) {
+      existing.quantity++;
+    } else {
+      state.cart.push({
+        id: product._id || product.name,
+        name: product.name,
+        price: product.price,
+        image: product.image,
+        category: product.category,
+        quantity: 1
+      });
+    }
+
+    saveCart();
+    renderCart();
+    renderProducts(document.querySelector('.filter-btn.active')?.dataset.category || 'all');
+    showToast(`${product.name} added to cart! 🛒`, 'success');
+  }
+
+  function updateCartQty(id, delta) {
+    const item = state.cart.find(item => item.id === id);
+    if (!item) return;
+
+    item.quantity += delta;
+    if (item.quantity <= 0) {
+      removeFromCart(id);
+    } else {
+      saveCart();
+      renderCart();
+      renderProducts(document.querySelector('.filter-btn.active')?.dataset.category || 'all');
+    }
+  }
+
+  function removeFromCart(id) {
+    state.cart = state.cart.filter(item => item.id !== id);
+    saveCart();
+    renderCart();
+    renderProducts(document.querySelector('.filter-btn.active')?.dataset.category || 'all');
+  }
+
+  function saveCart() {
+    localStorage.setItem('mindspace_cart', JSON.stringify(state.cart));
+  }
+
+  function saveOrderLocally(order) {
+    if (!order) return;
+    // Don't duplicate
+    if (state.localOrderHistory.find(o => o.razorpayOrderId === order.razorpayOrderId)) return;
+    
+    state.localOrderHistory.unshift(order);
+    localStorage.setItem('mindspace_orders', JSON.stringify(state.localOrderHistory));
+  }
+
+  function renderCart() {
+    const list = document.getElementById('cart-items');
+    const badge = document.getElementById('cart-badge');
+    const checkoutBtn = document.getElementById('cart-checkout-btn');
+    const totalPriceEl = document.getElementById('cart-total-price');
+
+    const totalQty = state.cart.reduce((sum, item) => sum + item.quantity, 0);
+    badge.textContent = totalQty;
+    badge.style.display = totalQty > 0 ? 'flex' : 'none';
+
+    if (state.cart.length === 0) {
+      list.innerHTML = '<p class="empty-state">Your cart is empty. Start shopping! 🛍️</p>';
+      totalPriceEl.textContent = '₹0';
+      checkoutBtn.disabled = true;
+      return;
+    }
+
+    checkoutBtn.disabled = false;
+    let total = 0;
+
+    list.innerHTML = state.cart.map(item => {
+      total += item.price * item.quantity;
+      const gradients = [
+        'linear-gradient(135deg, #667eea, #764ba2)',
+        'linear-gradient(135deg, #f093fb, #f5576c)',
+        'linear-gradient(135deg, #4facfe, #00f2fe)'
+      ];
+      const imgStyle = item.image 
+        ? `background-image: url(${item.image});` 
+        : `background: ${gradients[0]};`;
+
+      return `
+        <div class="cart-item">
+          <div class="cart-item-img" style="${imgStyle}"></div>
+          <div class="cart-item-info">
+            <h4>${escapeHtml(item.name)}</h4>
+            <p class="cart-item-price">₹${item.price}</p>
+            <div class="cart-item-controls">
+              <button class="qty-btn" onclick="window.MindSpace.updateCartQty('${item.id}', -1)">-</button>
+              <span>${item.quantity}</span>
+              <button class="qty-btn" onclick="window.MindSpace.updateCartQty('${item.id}', 1)">+</button>
+              <i data-lucide="trash-2" class="cart-item-remove" onclick="window.MindSpace.removeFromCart('${item.id}')"></i>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    totalPriceEl.textContent = `₹${total}`;
+    if (window.lucide) lucide.createIcons();
+  }
+
+  // ═══════════ ORDER HISTORY ═══════════
+  function toggleShopView(view) {
+    state.currentShopView = view;
+    const storeView = document.getElementById('shop-store-view');
+    const ordersView = document.getElementById('shop-orders-view');
+    const storeBtn = document.getElementById('view-store-btn');
+    const ordersBtn = document.getElementById('view-orders-btn');
+
+    if (view === 'orders') {
+      storeView.style.display = 'none';
+      ordersView.style.display = 'block';
+      storeBtn.classList.remove('active');
+      ordersBtn.classList.add('active');
+      loadOrderHistory();
+    } else {
+      storeView.style.display = 'block';
+      ordersView.style.display = 'none';
+      storeBtn.classList.add('active');
+      ordersBtn.classList.remove('active');
+    }
+  }
+
+  async function loadOrderHistory() {
+    // If logged in, fetch from server to get full history
+    if (state.token) {
+      try {
+        const data = await apiRequest('/payment/my-orders');
+        state.orderHistory = data.orders || [];
+      } catch (err) {
+        console.error('History Fetch Error:', err);
+      }
+    }
+    
+    // Always render combined history (server + local for double-safety)
+    renderOrderHistory();
+  }
+
+  function renderOrderHistory() {
+    const list = document.getElementById('orders-history-list');
+    
+    // Combine server history and local history, ensuring uniqueness by Razorpay Order ID
+    const combined = [...state.orderHistory];
+    state.localOrderHistory.forEach(localOrder => {
+      if (!combined.find(o => o.razorpayOrderId === localOrder.razorpayOrderId)) {
+        combined.push(localOrder);
+      }
+    });
+
+    // Sort by date descending
+    combined.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    if (combined.length === 0) {
+      const loginPromp = !state.token ? '<p style="margin-top:15px; font-size:0.8rem; color:var(--text-muted);">Tip: <a href="#" onclick="document.getElementById(\'show-login\').click()">Login</a> to sync history across devices.</p>' : '';
+      list.innerHTML = `
+        <div class="empty-state">
+          <p>No orders found. Support your wellness journey by visiting the store! 🛍️</p>
+          ${loginPromp}
+        </div>`;
+      return;
+    }
+
+    list.innerHTML = combined.map(order => `
+      <div class="order-history-card">
+        <div class="order-history-header">
+          <div>
+            <h4>ORDER ID</h4>
+            <div class="order-id">#${order.razorpayOrderId}</div>
+          </div>
+          <div class="order-status-badge">${order.status}</div>
+        </div>
+        <div class="order-history-items">
+          ${order.items.map(item => `
+            <div class="history-item-mini">
+              <span>${escapeHtml(item.name)}</span>
+              <strong>x${item.quantity}</strong>
+            </div>
+          `).join('')}
+        </div>
+        <div class="order-history-footer">
+          <div>
+            <span style="color:var(--text-muted); font-size: 0.8rem;">${formatDate(order.createdAt)}</span>
+            <div class="order-total-price">₹${order.totalAmount}</div>
+          </div>
+          <button class="btn btn-ghost btn-sm" onclick='window.MindSpace.showInvoice(${JSON.stringify(order).replace(/'/g, "&apos;")})'>
+            <i data-lucide="file-text"></i> View Bill
+          </button>
+        </div>
+      </div>
+    `).join('');
+    
+    if (window.lucide) lucide.createIcons();
+  }
+
+  // ═══════════ INVOICE LOGIC ═══════════
+  function showInvoice(order) {
+    document.getElementById('invoice-id').textContent = `Order ID: #${order.razorpayOrderId}`;
+    document.getElementById('invoice-date').textContent = new Date(order.createdAt).toLocaleDateString('en-US', {
+      year: 'numeric', month: 'long', day: 'numeric'
+    });
+    document.getElementById('invoice-customer-name').textContent = order.customer.name;
+    document.getElementById('invoice-customer-address').textContent = 
+      `${order.customer.address}, ${order.customer.city}, ${order.customer.state} - ${order.customer.pincode}`;
+    document.getElementById('invoice-payment-type').textContent = 
+      order.razorpaySignature === 'COD_SIMULATED' ? 'Cash on Delivery' : 'Paid via Razorpay Online';
+
+    const itemsBody = document.getElementById('invoice-items-body');
+    itemsBody.innerHTML = order.items.map(item => `
+      <tr>
+        <td>${escapeHtml(item.name)}</td>
+        <td>${item.quantity}</td>
+        <td>₹${item.price}</td>
+        <td style="text-align: right;">₹${item.price * item.quantity}</td>
+      </tr>
+    `).join('');
+
+    document.getElementById('invoice-subtotal').textContent = `₹${order.totalAmount}`;
+    document.getElementById('invoice-total-amount').textContent = `₹${order.totalAmount}`;
+
+    document.getElementById('invoice-modal').style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeInvoice() {
+    document.getElementById('invoice-modal').style.display = 'none';
+    document.body.style.overflow = '';
   }
 
   function getCategoryEmoji(cat) {
@@ -882,24 +1144,44 @@
   const orderSuccessModal = document.getElementById('order-success-modal');
 
   function openCheckout(productIndex) {
-    const product = state.products[productIndex];
-    if (!product) return;
+    const isSingle = typeof productIndex !== 'undefined';
+    let checkoutItems = [];
 
-    // Store product reference
-    state.checkoutProduct = product;
-
-    // Populate modal with product info
-    document.getElementById('checkout-product-name').textContent = product.name;
-    document.getElementById('checkout-product-price').textContent = `₹${product.price}`;
-    const imgEl = document.getElementById('checkout-product-img');
-    if (product.image) {
-      imgEl.style.backgroundImage = `url(${product.image})`;
-      imgEl.style.backgroundSize = 'cover';
-      imgEl.textContent = '';
+    if (isSingle) {
+      const product = state.products[productIndex];
+      if (!product) return;
+      checkoutItems = [{
+        id: product._id || product.name,
+        name: product.name,
+        price: product.price,
+        image: product.image,
+        quantity: 1
+      }];
     } else {
-      imgEl.style.backgroundImage = '';
-      imgEl.textContent = getCategoryEmoji(product.category);
+      if (state.cart.length === 0) return;
+      checkoutItems = [...state.cart];
     }
+
+    state.checkoutItems = checkoutItems;
+    const total = checkoutItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    state.checkoutTotal = total;
+
+    // Build items summary UI
+    const summaryContainer = document.getElementById('checkout-items-summary');
+    summaryContainer.innerHTML = `
+      <div class="checkout-items-list">
+        ${checkoutItems.map(item => `
+          <div class="checkout-item-line">
+            <span>${escapeHtml(item.name)} (x${item.quantity})</span>
+            <span>₹${item.price * item.quantity}</span>
+          </div>
+        `).join('')}
+      </div>
+      <div class="checkout-total-line">
+        <span>Subtotal</span>
+        <span>₹${total}</span>
+      </div>
+    `;
 
     // Pre-fill name from user profile
     const nameInput = document.getElementById('checkout-name');
@@ -911,6 +1193,9 @@
     const errorEl = document.getElementById('checkout-form-error');
     errorEl.style.display = 'none';
     errorEl.textContent = '';
+
+    // If opening checkout from cart, close sidebar
+    if (!isSingle) toggleCart();
 
     // Show modal
     checkoutModal.style.display = 'flex';
@@ -977,42 +1262,35 @@
     const originalBtnText = submitBtn.innerHTML;
     submitBtn.textContent = '⏳ Processing...';
 
-    const product = state.checkoutProduct;
-    const orderDetails = { name, phone, address, city, state: stateVal, pincode, payment, product };
+    const items = state.checkoutItems;
+    const totalAmount = state.checkoutTotal;
+    const customerDetails = { name, phone, address, city, state: stateVal, pincode };
 
     if (payment === 'razorpay') {
-      // Check if Razorpay SDK is loaded
       if (typeof window.Razorpay === 'undefined') {
-        showToast('Payment gateway not loaded. Check your internet connection and try again.', 'error');
+        showToast('Payment gateway not loaded.', 'error');
         submitBtn.disabled = false;
         submitBtn.innerHTML = originalBtnText;
         return;
       }
       try {
-        // 1. Get Razorpay Key
         const keyData = await apiRequest('/payment/key');
         const RAZORPAY_KEY = keyData.key;
 
-        // 2. Create Order
         const orderData = await apiRequest('/payment/order', {
           method: 'POST',
-          body: JSON.stringify({
-            amount: product.price,
-            productId: product._id || product.name
-          })
+          body: JSON.stringify({ items })
         });
 
-        // 3. Open Razorpay Checkout
         const options = {
           key: RAZORPAY_KEY,
           amount: orderData.amount,
           currency: orderData.currency,
           name: "MindSpace 3D",
-          description: `Purchase of ${product.name}`,
+          description: `Wellness Purchase (${items.length} items)`,
           image: "/logo.jpeg",
           order_id: orderData.id,
           handler: async function (response) {
-            // 4. Verify Payment
             try {
               submitBtn.textContent = '⏳ Verifying Payment...';
               const verification = await apiRequest('/payment/verify', {
@@ -1021,82 +1299,100 @@
                   razorpay_order_id: response.razorpay_order_id,
                   razorpay_payment_id: response.razorpay_payment_id,
                   razorpay_signature: response.razorpay_signature,
-                  customerDetails: { name, phone, address, city, state: stateVal, pincode },
-                  productDetails: { id: product._id || product.name, name: product.name, price: product.price }
+                  customerDetails,
+                  items,
+                  totalAmount,
+                  userId: state.token ? state.user?._id || state.user?.id : null
                 })
               });
 
               if (verification.status === 'success' || verification.status === 'partial_success') {
-                showSuccessModal(orderDetails, response.razorpay_order_id);
+                state.lastConfirmedOrder = verification.order;
+                state.cart = [];
+                saveCart();
+                saveOrderLocally(verification.order);
+                renderCart();
+                renderProducts(document.querySelector('.filter-btn.active')?.dataset.category || 'all');
+                showSuccessModal(verification.order);
               } else {
-                throw new Error('Payment verification failed');
+                throw new Error('Verification failed');
               }
             } catch (err) {
-              showToast('Payment verification failed. Please contact support.', 'error');
+              showToast('Verification failed. Contact support.', 'error');
               submitBtn.disabled = false;
               submitBtn.innerHTML = originalBtnText;
             }
           },
-          prefill: {
-            name: name,
-            contact: phone,
-            email: state.user?.email || ""
-          },
-          theme: {
-            color: "#7c3aed"
-          },
-          modal: {
-            ondismiss: function() {
-              submitBtn.disabled = false;
-              submitBtn.innerHTML = originalBtnText;
-            }
-          }
+          prefill: { name, contact: phone, email: state.user?.email || "" },
+          theme: { color: "#7c3aed" },
+          modal: { ondismiss: () => { submitBtn.disabled = false; submitBtn.innerHTML = originalBtnText; } }
         };
 
         const rzp = new Razorpay(options);
         rzp.open();
       } catch (err) {
-        console.error('Razorpay Init Error:', err);
-        const errMsg = err?.message?.includes('Request failed')
-          ? 'Could not connect to payment server. Make sure you are logged in or try again.'
-          : 'Failed to initialize payment. Check your internet connection and try again.';
-        showToast(errMsg, 'error');
+        showToast('Payment failed to initialize.', 'error');
         submitBtn.disabled = false;
         submitBtn.innerHTML = originalBtnText;
       }
     } else {
-      // Simulate COD processing
-      setTimeout(() => {
-        showSuccessModal(orderDetails, 'MS' + Date.now().toString().slice(-8).toUpperCase());
-      }, 1500);
+      // Simulate COD processing via server
+      try {
+        const data = await apiRequest('/payment/save-cod', {
+          method: 'POST',
+          body: JSON.stringify({
+            customerDetails,
+            items,
+            totalAmount,
+            userId: state.token ? state.user?._id || state.user?.id : null
+          })
+        });
+        state.lastConfirmedOrder = data.order;
+        state.cart = [];
+        saveCart();
+        saveOrderLocally(data.order);
+        renderCart();
+        renderProducts(document.querySelector('.filter-btn.active')?.dataset.category || 'all');
+        setTimeout(() => showSuccessModal(data.order), 1000);
+      } catch (err) {
+        showToast('Error processing COD order.', 'error');
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = originalBtnText;
+      }
     }
   });
 
-  function showSuccessModal(details, orderId) {
+  function showSuccessModal(order) {
+    if (!order) {
+      console.error('showSuccessModal called with no order data');
+      closeCheckout();
+      return;
+    }
     const submitBtn = document.getElementById('checkout-submit-btn');
     submitBtn.disabled = false;
     submitBtn.innerHTML = '<i data-lucide="check-circle"></i> Place Order';
 
     const paymentLabels = { cod: 'Cash on Delivery', razorpay: 'Razorpay (Online)' };
+    const paymentMethod = order.razorpaySignature === 'COD_SIMULATED' ? 'cod' : 'razorpay';
 
     // Show success modal
     closeCheckout();
     document.getElementById('order-details-box').innerHTML = `
-      <div class="order-detail-row"><span>Order ID</span><strong>#${orderId}</strong></div>
-      <div class="order-detail-row"><span>Product</span><strong>${escapeHtml(details.product.name)}</strong></div>
-      <div class="order-detail-row"><span>Amount</span><strong>₹${details.product.price}</strong></div>
-      <div class="order-detail-row"><span>Payment</span><strong>${paymentLabels[details.payment]}</strong></div>
-      <div class="order-detail-row"><span>Deliver To</span><strong>${escapeHtml(details.address)}, ${escapeHtml(details.city)}, ${escapeHtml(details.state)} - ${details.pincode}</strong></div>
-      <div class="order-detail-row"><span>Phone</span><strong>${details.phone}</strong></div>
+      <div class="order-detail-row"><span>Order ID</span><strong>#${order.razorpayOrderId}</strong></div>
+      <div class="order-detail-row"><span>Total Items</span><strong>${order.items.length}</strong></div>
+      <div class="order-detail-row"><span>Total Amount</span><strong>₹${order.totalAmount}</strong></div>
+      <div class="order-detail-row"><span>Payment</span><strong>${paymentLabels[paymentMethod]}</strong></div>
+      <div class="order-detail-row"><span>Deliver To</span><strong>${escapeHtml(order.customer.address)}, ${order.customer.city}</strong></div>
     `;
 
-    // Reset form
-    document.getElementById('checkout-form').reset();
+    // View Bill Button Logic
+    const viewBillBtn = document.getElementById('view-order-bill-btn');
+    viewBillBtn.onclick = () => showInvoice(order);
 
     orderSuccessModal.style.display = 'flex';
     document.body.style.overflow = 'hidden';
 
-    showToast(`Order placed for ${details.product.name}! 🎉`, 'success');
+    showToast(`Order placed successfully! 🎉`, 'success');
     
     // Refresh Lucide Icons in modal
     if (window.lucide) lucide.createIcons();
@@ -1305,6 +1601,13 @@
     deleteMood,
     deleteJournal,
     openCheckout,
+    toggleCart,
+    addToCart,
+    updateCartQty,
+    removeFromCart,
+    toggleShopView,
+    showInvoice,
+    closeInvoice,
     incrementSessions: () => {
       state.sessions++;
       localStorage.setItem('mindspace_sessions', state.sessions.toString());

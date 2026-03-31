@@ -580,25 +580,45 @@
       <!-- ════════ SECTION: WELLNESS SHOP ════════ -->
       <section id="section-shop" class="section">
         <div class="section-header">
-          <h1>🛒 Mental Health Shop</h1>
-          <p>Products to support your wellness journey.</p>
-        </div>
-
-        <!-- Category Filters -->
-        <div class="shop-filters">
-          <button class="filter-btn active" data-category="all">All</button>
-          <button class="filter-btn" data-category="stress-relief">Stress Relief</button>
-          <button class="filter-btn" data-category="meditation">Meditation</button>
-          <button class="filter-btn" data-category="journal">Journals</button>
-          <button class="filter-btn" data-category="aromatherapy">Aromatherapy</button>
-          <button class="filter-btn" data-category="fitness">Fitness</button>
-          <button class="filter-btn" data-category="books">Books</button>
-          <button class="filter-btn" data-category="accessories">Accessories</button>
+          <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+            <div>
+              <h1>🛒 Mental Health Shop</h1>
+              <p>Products to support your wellness journey.</p>
+            </div>
+            <div class="shop-history-toggle">
+              <button class="history-btn active" id="view-store-btn" onclick="window.MindSpace.toggleShopView('store')">
+                <i data-lucide="shopping-bag"></i> Store
+              </button>
+              <button class="history-btn" id="view-orders-btn" onclick="window.MindSpace.toggleShopView('orders')">
+                <i data-lucide="package"></i> My Orders
+              </button>
+            </div>
+          </div>
         </div>
 
         <!-- Products Grid -->
-        <div id="products-grid" class="products-grid">
-          <p class="empty-state">Loading products... 🛍️</p>
+        <div id="shop-store-view">
+          <!-- Category Filters -->
+          <div class="shop-filters">
+            <button class="filter-btn active" data-category="all">All</button>
+            <button class="filter-btn" data-category="stress-relief">Stress Relief</button>
+            <button class="filter-btn" data-category="meditation">Meditation</button>
+            <button class="filter-btn" data-category="journal">Journals</button>
+            <button class="filter-btn" data-category="aromatherapy">Aromatherapy</button>
+            <button class="filter-btn" data-category="fitness">Fitness</button>
+            <button class="filter-btn" data-category="books">Books</button>
+            <button class="filter-btn" data-category="accessories">Accessories</button>
+          </div>
+          <div id="products-grid" class="products-grid">
+            <p class="empty-state">Loading products... 🛍️</p>
+          </div>
+        </div>
+
+        <!-- Orders History Grid -->
+        <div id="shop-orders-view" style="display: none;">
+          <div id="orders-history-list" class="orders-history-list">
+            <p class="empty-state">Loading your order history... 📦</p>
+          </div>
         </div>
       </section>
 
@@ -748,17 +768,48 @@
     </main>
   </div>
 
+  <!-- ═══════════ FLOATING CART BUTTON ═══════════ -->
+  <button id="cart-floating-btn" class="cart-floating-btn" onclick="window.MindSpace.toggleCart()">
+    <i data-lucide="shopping-cart"></i>
+    <span id="cart-badge" class="cart-badge">0</span>
+  </button>
+
+  <!-- ═══════════ CART SIDEBAR ═══════════ -->
+  <div id="cart-overlay" class="cart-overlay" onclick="window.MindSpace.toggleCart()"></div>
+  <aside id="cart-sidebar" class="cart-sidebar">
+    <div class="cart-header">
+      <h2><i data-lucide="shopping-cart"></i> Your Cart</h2>
+      <button class="cart-close-btn" onclick="window.MindSpace.toggleCart()">✕</button>
+    </div>
+    <div id="cart-items" class="cart-items">
+      <!-- Items populated by JS -->
+      <p class="empty-state">Your cart is empty. Start shopping! 🛍️</p>
+    </div>
+    <div class="cart-footer">
+      <div class="cart-total-row">
+        <span>Total:</span>
+        <span id="cart-total-price">₹0</span>
+      </div>
+      <button id="cart-checkout-btn" class="btn btn-primary btn-glow" style="width: 100%;" onclick="window.MindSpace.openCheckout()" disabled>
+        <i data-lucide="check-circle"></i> Proceed to Checkout
+      </button>
+    </div>
+  </aside>
+
   <!-- ═══════════ CHECKOUT MODAL ═══════════ -->
   <div id="checkout-modal" class="checkout-overlay" style="display:none;">
     <div class="checkout-container glass-card">
       <button class="checkout-close-btn" id="checkout-close-btn" aria-label="Close">✕</button>
 
       <!-- Product Summary -->
-      <div class="checkout-product-summary" id="checkout-product-summary">
-        <div class="checkout-product-img" id="checkout-product-img"><i data-lucide="shopping-bag"></i></div>
-        <div class="checkout-product-details">
-          <h3 id="checkout-product-name">Product Name</h3>
-          <p class="checkout-price" id="checkout-product-price">₹0</p>
+      <div class="checkout-items-summary" id="checkout-items-summary">
+        <!-- Populated by JS for multi-items -->
+        <div class="checkout-product-summary">
+          <div class="checkout-product-img" id="checkout-product-img"><i data-lucide="shopping-bag"></i></div>
+          <div class="checkout-product-details">
+            <h3 id="checkout-product-name">Product Name</h3>
+            <p class="checkout-price" id="checkout-product-price">₹0</p>
+          </div>
         </div>
       </div>
 
@@ -827,7 +878,74 @@
       <h2>Order Placed Successfully!</h2>
       <p id="order-success-msg">Your order has been placed. You'll receive it in 5-7 business days.</p>
       <div class="order-details-box" id="order-details-box"></div>
-      <button class="btn btn-primary btn-glow" id="order-success-close">Continue Shopping</button>
+      <div style="display: flex; gap: 10px; width: 100%; margin-top: 20px;">
+        <button class="btn btn-primary btn-glow" id="order-success-close" style="flex: 1;">Continue Shopping</button>
+        <button class="btn btn-ghost" id="view-order-bill-btn" style="flex: 1;">View Bill</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════ INVOICE / BILL MODAL ═══════════ -->
+  <div id="invoice-modal" class="invoice-modal">
+    <div class="invoice-container">
+      <div class="invoice-header">
+        <div class="invoice-header-left">
+          <div class="invoice-logo">🧠 MindSpace 3D</div>
+          <h2>INVOICE</h2>
+          <p id="invoice-id">Order ID: #MS123456</p>
+        </div>
+        <div class="invoice-header-right" style="text-align: right;">
+          <h4 style="color: #a0aec0; font-size: 0.75rem; text-transform: uppercase;">Date</h4>
+          <p id="invoice-date">March 31, 2026</p>
+        </div>
+      </div>
+      <div class="invoice-body">
+        <div class="invoice-meta">
+          <div>
+            <h4>Billed To</h4>
+            <p id="invoice-customer-name">Rahul Sharma</p>
+            <p id="invoice-customer-address" style="color: #718096; font-size: 0.85rem; font-weight: 400; max-width: 250px;">Street Address, City, State - PIN</p>
+          </div>
+          <div style="text-align: right;">
+            <h4>Payment</h4>
+            <p id="invoice-payment-type">Razorpay Online</p>
+          </div>
+        </div>
+        <table class="invoice-table">
+          <thead>
+            <tr>
+              <th>Item Description</th>
+              <th>Qty</th>
+              <th>Price</th>
+              <th style="text-align: right;">Total</th>
+            </tr>
+          </thead>
+          <tbody id="invoice-items-body">
+            <!-- Populated by JS -->
+          </tbody>
+        </table>
+        <div class="invoice-total-section">
+          <div class="invoice-total-row">
+            <span>Subtotal</span>
+            <span id="invoice-subtotal">₹0</span>
+          </div>
+          <div class="invoice-total-row">
+            <span>Tax (included)</span>
+            <span>₹0</span>
+          </div>
+          <div class="invoice-total-row grand-total">
+            <span>Grand Total</span>
+            <span id="invoice-total-amount">₹0</span>
+          </div>
+        </div>
+      </div>
+      <div class="invoice-footer">
+        <p>Thank you for your purchase from MindSpace 3D. Stay Mindful!</p>
+      </div>
+      <div class="invoice-actions">
+        <button class="btn-invoice btn-close-invoice" onclick="window.MindSpace.closeInvoice()">Close</button>
+        <button class="btn-invoice btn-download" onclick="window.print()">Print Invoice</button>
+      </div>
     </div>
   </div>
 

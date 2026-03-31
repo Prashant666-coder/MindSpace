@@ -3,6 +3,7 @@ const router = express.Router();
 const Razorpay = require('razorpay');
 const crypto = require('crypto');
 const Order = require('../models/Order');
+const auth = require('../middleware/auth');
 
 // Initialize Razorpay
 // App will now fail fast if keys are missing from .env, ensuring security.
@@ -34,20 +35,24 @@ router.get('/key', (req, res) => {
  */
 router.post('/order', async (req, res) => {
     try {
-        const { amount, currency = 'INR', productId } = req.body;
+        const { items, currency = 'INR' } = req.body;
 
         // Validation
-        if (!amount || isNaN(amount) || amount <= 0) {
-            return res.status(400).json({ message: 'A valid amount is required' });
+        if (!items || !Array.isArray(items) || items.length === 0) {
+            return res.status(400).json({ message: 'At least one item is required' });
+        }
+
+        // Calculate total amount server-side for security
+        const amount = items.reduce((sum, item) => sum + (item.price * (item.quantity || 1)), 0);
+
+        if (isNaN(amount) || amount <= 0) {
+            return res.status(400).json({ message: 'Invalid total amount' });
         }
 
         // Razorpay receipt field has a max of 40 characters — truncate safely
         const receiptBase = `rcpt_${Date.now()}`; // 18 chars
-        const safeProductId = String(productId || 'shop')
-            .replace(/\s+/g, '')  // remove spaces
-            .replace(/[^a-zA-Z0-9_-]/g, '') // strip special chars
-            .substring(0, 40 - receiptBase.length - 1); // leave room for separator
-        const receipt = `${receiptBase}_${safeProductId}`.substring(0, 40);
+        const firstItemName = items[0].name.replace(/\s+/g, '').replace(/[^a-zA-Z0-9_-]/g, '');
+        const receipt = `${receiptBase}_${firstItemName}`.substring(0, 40);
 
         const options = {
             amount: Math.round(Number(amount) * 100), // amount in paise
@@ -84,7 +89,9 @@ router.post('/verify', async (req, res) => {
             razorpay_payment_id,
             razorpay_signature,
             customerDetails,
-            productDetails
+            items, // Update to receive items array
+            totalAmount,
+            userId // Pass userId if authenticated
         } = req.body;
 
         if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
@@ -107,11 +114,15 @@ router.post('/verify', async (req, res) => {
                     razorpayOrderId: razorpay_order_id,
                     razorpayPaymentId: razorpay_payment_id,
                     razorpaySignature: razorpay_signature,
-                    product: {
-                        id: productDetails?.id || 'unknown',
-                        name: productDetails?.name || 'Product'
-                    },
-                    amount: productDetails?.price || 0,
+                    user: userId || null,
+                    items: items.map(item => ({
+                        id: item.id || 'unknown',
+                        name: item.name || 'Product',
+                        price: item.price || 0,
+                        quantity: item.quantity || 1,
+                        image: item.image || ''
+                    })),
+                    totalAmount: totalAmount || 0,
                     customer: {
                         name: customerDetails?.name || 'Guest',
                         phone: customerDetails?.phone || '0000000000',
@@ -128,15 +139,23 @@ router.post('/verify', async (req, res) => {
                 res.json({ 
                     status: 'success', 
                     message: 'Payment verified and order saved successfully',
-                    orderId: newOrder._id
+                    orderId: newOrder._id,
+                    order: newOrder
                 });
             } catch (dbError) {
                 console.error('Order Saving Error:', dbError);
-                // Even if DB save fails, we verified the payment
                 res.status(200).json({ 
                     status: 'partial_success', 
-                    message: 'Payment verified but failed to save order details',
-                    error: dbError.message 
+                    message: 'Payment verified but failed to save order details. Proceeding with details in response.',
+                    order: {
+                        razorpayOrderId: razorpay_order_id,
+                        items: items,
+                        totalAmount: totalAmount,
+                        customer: customerDetails,
+                        status: 'captured',
+                        createdAt: new Date(),
+                        razorpaySignature: razorpay_signature
+                    }
                 });
             }
         } else {
@@ -148,6 +167,61 @@ router.post('/verify', async (req, res) => {
     } catch (error) {
         console.error('Razorpay Verification Error:', error);
         res.status(500).json({ message: 'Error verifying payment', error: error.message });
+    }
+});
+
+/**
+ * @route   GET /api/payment/my-orders
+ * @desc    Get purchase history for the logged-in user
+ * @access  Private
+ */
+router.get('/my-orders', auth, async (req, res) => {
+    try {
+        const orders = await Order.find({ user: req.userId }).sort({ createdAt: -1 });
+        res.json({ orders });
+    } catch (error) {
+        console.error('Fetch Orders Error:', error);
+        res.status(500).json({ message: 'Error fetching orders', error: error.message });
+    }
+});
+
+/**
+ * @route   POST /api/payment/save-cod
+ * @desc    Save a Cash on Delivery order (Internal simulation)
+ * @access  Public (should be protected in real apps)
+ */
+router.post('/save-cod', async (req, res) => {
+    try {
+        const { customerDetails, items, totalAmount, userId } = req.body;
+
+        const newOrder = new Order({
+            razorpayOrderId: 'COD_' + Date.now(),
+            razorpayPaymentId: 'COD_' + Math.random().toString(36).substr(2, 9),
+            razorpaySignature: 'COD_SIMULATED',
+            user: userId || null,
+            items: items.map(item => ({
+                id: item.id || 'unknown',
+                name: item.name || 'Product',
+                price: item.price || 0,
+                quantity: item.quantity || 1,
+                image: item.image || ''
+            })),
+            totalAmount: totalAmount || 0,
+            customer: {
+                name: customerDetails?.name || 'Guest',
+                phone: customerDetails?.phone || '0000000000',
+                address: customerDetails?.address || 'N/A',
+                city: customerDetails?.city || 'N/A',
+                state: customerDetails?.state || 'N/A',
+                pincode: customerDetails?.pincode || '000000'
+            },
+            status: 'captured'
+        });
+
+        await newOrder.save();
+        res.json({ status: 'success', orderId: newOrder._id, order: newOrder });
+    } catch (error) {
+        res.status(500).json({ message: 'Error saving COD order', error: error.message });
     }
 });
 

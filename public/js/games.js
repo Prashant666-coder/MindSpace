@@ -70,9 +70,14 @@
   const bubbleCanvas = document.getElementById('bubble-canvas');
   const bubbleCtx = bubbleCanvas?.getContext('2d');
   let bubbles = [];
+  let particles = [];
   let bubbleScore = 0;
+  let bubbleTimeLeft = 60;
+  let bubbleLevel = 1;
   let bubbleAnimId = null;
   let bubbleGameRunning = false;
+  let bubbleIsGameOver = false;
+  let bubbleTimerId = null;
 
   initBubbleGame();
 
@@ -90,87 +95,168 @@
   // Bubble class
   class Bubble {
     constructor(canvasWidth, canvasHeight) {
-      // Larger bubbles for easier trackpad clicking
-      this.radius = Math.random() * 40 + 25;
+      // Slightly smaller for higher speed
+      this.radius = Math.random() * 30 + 20;
       this.x = Math.random() * (canvasWidth - this.radius * 2) + this.radius;
       this.y = canvasHeight + this.radius;
-      // Slower rising speed for relaxation
-      this.speed = Math.random() * 0.8 + 0.2;
+      // Faster rising speed as level increases
+      this.speed = Math.random() * (0.8 + (bubbleLevel * 0.4)) + 0.3;
       this.wobble = Math.random() * 2 - 1;
       this.wobbleSpeed = Math.random() * 0.02 + 0.01;
       this.wobblePhase = Math.random() * Math.PI * 2;
       this.opacity = 0.7 + Math.random() * 0.3;
       this.popped = false;
       this.popProgress = 0;
+      this.pulse = 0;
 
-      // Calming colors
+      // Modern, vibrant colors
       const colors = [
-        'rgba(124, 58, 237, ', 'rgba(6, 182, 212, ',
-        'rgba(167, 139, 250, ', 'rgba(103, 232, 249, ',
-        'rgba(244, 114, 182, ', 'rgba(52, 211, 153, ',
-        'rgba(96, 165, 250, '
+        { h: 262, s: 83, l: 58 }, // Purple (Primary)
+        { h: 192, s: 91, l: 37 }, // Cyan (Secondary)
+        { h: 330, s: 81, l: 60 }, // Pink
+        { h: 142, s: 70, l: 45 }, // Green
+        { h: 217, s: 91, l: 60 }  // Blue
       ];
-      this.color = colors[Math.floor(Math.random() * colors.length)];
+      this.colorSet = colors[Math.floor(Math.random() * colors.length)];
     }
 
     update() {
-      if (this.popped) {
-        this.popProgress += 0.05;
-        this.radius += 2;
-        this.opacity -= 0.05;
-        return this.opacity <= 0;
-      }
+      if (this.popped) return true; // Popped bubbles are handled by particles system or removed
 
+      this.pulse += 0.05;
       this.y -= this.speed;
       this.wobblePhase += this.wobbleSpeed;
       this.x += Math.sin(this.wobblePhase) * this.wobble;
-      return this.y + this.radius < 0;
+      return this.y + this.radius < -20;
     }
 
     draw(ctx) {
+      const pulseSize = Math.sin(this.pulse) * 2;
+      const currentRadius = this.radius + pulseSize;
+
+      ctx.save();
+      ctx.globalAlpha = 0.9; // Much more visible
+
+      const { h, s, l } = this.colorSet;
+      const baseColor = `hsl(${h}, ${s}%, ${l}%)`;
+      const lighterColor = `hsl(${h}, ${s}%, ${l + 20}%)`;
+
+      // Main bubble body (Solid/Cartoonish)
       ctx.beginPath();
-      ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-      ctx.fillStyle = `${this.color}${this.opacity})`;
+      ctx.arc(this.x, this.y, currentRadius, 0, Math.PI * 2);
+      ctx.fillStyle = baseColor;
       ctx.fill();
 
-      // Shine effect
+      // Simple cartoon highlight
       ctx.beginPath();
-      ctx.arc(this.x - this.radius * 0.3, this.y - this.radius * 0.3, this.radius * 0.2, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(255, 255, 255, ${this.opacity * 0.5})`;
+      ctx.arc(this.x - currentRadius * 0.35, this.y - currentRadius * 0.35, currentRadius * 0.25, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
       ctx.fill();
 
-      // Border
+      // Stronger border for visibility
       ctx.beginPath();
-      ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-      ctx.strokeStyle = `${this.color}${this.opacity * 0.5})`;
-      ctx.lineWidth = 2;
+      ctx.arc(this.x, this.y, currentRadius, 0, Math.PI * 2);
+      ctx.strokeStyle = 'white';
+      ctx.lineWidth = 2.5;
       ctx.stroke();
+
+      ctx.restore();
     }
 
     isHit(mx, my) {
       const dx = mx - this.x;
       const dy = my - this.y;
-      return Math.sqrt(dx * dx + dy * dy) < this.radius;
+      return Math.sqrt(dx * dx + dy * dy) < this.radius + 5; // Slight padding for easier popping
+    }
+  }
+
+  // Particle System
+  class Particle {
+    constructor(x, y, color) {
+      this.x = x;
+      this.y = y;
+      const angle = Math.random() * Math.PI * 2;
+      const speed = Math.random() * 5 + 2;
+      this.vx = Math.cos(angle) * speed;
+      this.vy = Math.sin(angle) * speed;
+      this.radius = Math.random() * 3 + 1;
+      this.color = color;
+      this.life = 1.0;
+      this.decay = Math.random() * 0.02 + 0.02;
+    }
+
+    update() {
+      this.x += this.vx;
+      this.y += this.vy;
+      this.vy += 0.1; // Gravity
+      this.life -= this.decay;
+      return this.life <= 0;
+    }
+
+    draw(ctx) {
+      ctx.save();
+      ctx.globalAlpha = this.life;
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+      ctx.fillStyle = this.color;
+      ctx.fill();
+      ctx.restore();
     }
   }
 
   // Start bubble game
   document.getElementById('bubble-start')?.addEventListener('click', () => {
     cancelAnimationFrame(bubbleAnimId);
+    clearInterval(bubbleTimerId);
     initBubbleGame();
     bubbleGameRunning = true;
+    bubbleIsGameOver = false;
     bubbleScore = 0;
+    bubbleTimeLeft = 60;
+    bubbleLevel = 1;
     bubbles = [];
+    particles = [];
     document.getElementById('bubble-score').textContent = '0';
+    
+    // Start countdown timer
+    bubbleTimerId = setInterval(() => {
+      if (bubbleTimeLeft > 0) {
+        bubbleTimeLeft--;
+        // Update difficulty based on time
+        if (bubbleTimeLeft === 45) bubbleLevel = 2;
+        if (bubbleTimeLeft === 30) bubbleLevel = 3;
+        if (bubbleTimeLeft === 15) bubbleLevel = 4;
+      } else {
+        endBubbleGame();
+      }
+    }, 1000);
+
     animateBubbles();
   });
+
+  function endBubbleGame() {
+    bubbleGameRunning = false;
+    bubbleIsGameOver = true;
+    clearInterval(bubbleTimerId);
+    
+    // Save high score
+    const oldBest = parseInt(localStorage.getItem('bubble_best') || '0');
+    if (bubbleScore > oldBest) {
+      localStorage.setItem('bubble_best', bubbleScore.toString());
+    }
+  }
 
   // Reset bubble game
   document.getElementById('bubble-reset')?.addEventListener('click', () => {
     bubbleGameRunning = false;
+    bubbleIsGameOver = false;
     cancelAnimationFrame(bubbleAnimId);
+    clearInterval(bubbleTimerId);
     bubbles = [];
+    particles = [];
     bubbleScore = 0;
+    bubbleTimeLeft = 60;
+    bubbleLevel = 1;
     document.getElementById('bubble-score').textContent = '0';
     if (bubbleCtx) {
       bubbleCtx.clearRect(0, 0, bubbleCanvas.width, bubbleCanvas.height);
@@ -179,7 +265,7 @@
 
   // Pop bubbles on click
   bubbleCanvas?.addEventListener('click', (e) => {
-    if (!bubbleGameRunning) return;
+    if (!bubbleGameRunning || bubbleIsGameOver) return;
     const rect = bubbleCanvas.getBoundingClientRect();
     const mx = e.clientX - rect.left;
     const my = e.clientY - rect.top;
@@ -190,28 +276,91 @@
         bubbleScore++;
         document.getElementById('bubble-score').textContent = bubbleScore;
         playRelaxingPop();
+        
+        // Spawn particles
+        const { h, s, l } = bubble.colorSet;
+        const color = `hsla(${h}, ${s}%, ${l}%, 0.8)`;
+        for(let i = 0; i < 8; i++) {
+          particles.push(new Particle(bubble.x, bubble.y, color));
+        }
       }
     });
   });
 
+  function drawGameHUD(ctx) {
+    ctx.save();
+    
+    // Timer
+    ctx.font = 'bold 20px "Outfit", sans-serif';
+    ctx.fillStyle = bubbleTimeLeft < 10 ? '#ef4444' : '#ffffff';
+    ctx.textAlign = 'left';
+    ctx.fillText(`⏱️ Time: ${bubbleTimeLeft}s`, 20, 35);
+
+    // Level
+    ctx.fillStyle = '#ffffff';
+    ctx.textAlign = 'right';
+    ctx.fillText(`🚀 Level: ${bubbleLevel}`, bubbleCanvas.width - 20, 35);
+
+    ctx.restore();
+  }
+
+  function drawGameOver(ctx) {
+    ctx.save();
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.fillRect(0, 0, bubbleCanvas.width, bubbleCanvas.height);
+
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#ffffff';
+    
+    ctx.font = 'bold 40px "Outfit", sans-serif';
+    ctx.fillText('Game Over!', bubbleCanvas.width / 2, bubbleCanvas.height / 2 - 40);
+
+    ctx.font = '24px "Outfit", sans-serif';
+    ctx.fillText(`Final Score: ${bubbleScore}`, bubbleCanvas.width / 2, bubbleCanvas.height / 2 + 10);
+
+    const best = localStorage.getItem('bubble_best') || '0';
+    ctx.font = '18px "Outfit", sans-serif';
+    ctx.fillStyle = '#c4b5fd';
+    ctx.fillText(`Personal Best: ${best}`, bubbleCanvas.width / 2, bubbleCanvas.height / 2 + 45);
+
+    ctx.font = 'bold 16px "Outfit", sans-serif';
+    ctx.fillStyle = '#7c3aed';
+    ctx.fillText('CLICK START TO PLAY AGAIN', bubbleCanvas.width / 2, bubbleCanvas.height / 2 + 90);
+
+    ctx.restore();
+  }
+
   function animateBubbles() {
-    if (!bubbleGameRunning || !bubbleCtx) return;
+    if (!bubbleCtx) return;
 
     bubbleCtx.clearRect(0, 0, bubbleCanvas.width, bubbleCanvas.height);
 
-    // Spawn new bubbles at a much slower rate (fewer balloons)
-    if (Math.random() < 0.015) {
-      bubbles.push(new Bubble(bubbleCanvas.width, bubbleCanvas.height));
+    if (bubbleGameRunning) {
+      // Spawn bubbles (rate increases with level)
+      const spawnRate = 0.015 + (bubbleLevel * 0.01);
+      if (Math.random() < spawnRate) {
+        bubbles.push(new Bubble(bubbleCanvas.width, bubbleCanvas.height));
+      }
+
+      // Update and draw bubbles
+      bubbles = bubbles.filter(bubble => {
+        const shouldRemove = bubble.update();
+        if (!shouldRemove && !bubble.popped) bubble.draw(bubbleCtx);
+        return !shouldRemove && !bubble.popped;
+      });
+
+      // Update and draw particles
+      particles = particles.filter(p => {
+        const shouldRemove = p.update();
+        if (!shouldRemove) p.draw(bubbleCtx);
+        return !shouldRemove;
+      });
+
+      drawGameHUD(bubbleCtx);
+      bubbleAnimId = requestAnimationFrame(animateBubbles);
+    } else if (bubbleIsGameOver) {
+      drawGameOver(bubbleCtx);
     }
-
-    // Update and draw
-    bubbles = bubbles.filter(bubble => {
-      const shouldRemove = bubble.update();
-      if (!shouldRemove) bubble.draw(bubbleCtx);
-      return !shouldRemove;
-    });
-
-    bubbleAnimId = requestAnimationFrame(animateBubbles);
   }
 
   // ═══════════════════════════════════════════════════════
