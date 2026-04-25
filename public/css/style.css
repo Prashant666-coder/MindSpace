@@ -2607,6 +2607,21 @@ body:not(.dark-mode) .suggestion-chip {
     justify-content: space-between !important;
     width: 100%;
   }
+
+  /* Fixed Activity Finder Overlap */
+  .locate-btn {
+    position: relative !important;
+    bottom: auto !important;
+    right: auto !important;
+    margin-top: 15px;
+    width: 100% !important;
+  }
+
+  .map-container {
+    padding: 10px !important;
+    display: flex;
+    flex-direction: column;
+  }
 }
 
 /* ═══════════ UTILITY CLASSES ═══════════ */
@@ -3288,7 +3303,7 @@ textarea:focus-visible,
   background: var(--bg-medium);
   border-bottom: 1px solid var(--glass-border);
   backdrop-filter: blur(20px);
-  z-index: 101;
+  z-index: 2000; /* Increased to be above everything */
   padding: 0 20px;
   align-items: center;
   justify-content: space-between;
@@ -3360,6 +3375,7 @@ textarea:focus-visible,
     width: 280px;
     transition: left 0.4s cubic-bezier(0.4, 0, 0.2, 1);
     box-shadow: 20px 0 50px rgba(0, 0, 0, 0.3);
+    z-index: 3000; /* Sidebar drawer should be on top */
   }
 
   .sidebar.active {
