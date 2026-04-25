@@ -4,13 +4,11 @@
 
 ![MindSpace 3D](https://img.shields.io/badge/MindSpace-3D-7c3aed?style=for-the-badge&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0id2hpdGUiIGQ9Ik0xMiAyQzYuNDggMiAyIDYuNDggMiAxMnM0LjQ4IDEwIDEwIDEwIDEwLTQuNDggMTAtMTBTMTcuNTIgMiAxMiAyeiIvPjwvc3ZnPg==)
 ![Node.js](https://img.shields.io/badge/Node.js-18+-339933?style=for-the-badge&logo=node.js)
-![MongoDB](https://img.shields.io/badge/MongoDB-7.0-47A248?style=for-the-badge&logo=mongodb)
+![Supabase](https://img.shields.io/badge/Supabase-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white)
+![Razorpay](https://img.shields.io/badge/Razorpay-02042B?style=for-the-badge&logo=razorpay&logoColor=white)
 ![Three.js](https://img.shields.io/badge/Three.js-r128-000000?style=for-the-badge&logo=three.js)
-![License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)
 
 **A full-stack web application designed to help people manage stress and improve their mental health with an immersive 3D experience.**
-
-[Features](#-features) · [Screenshots](#-tech-stack) · [Getting Started](#-getting-started) · [API Reference](#-api-reference) · [Project Structure](#-project-structure)
 
 </div>
 
@@ -18,65 +16,44 @@
 
 ## ✨ Features
 
-### 🎯 Core Features
-
-| Feature | Description |
-|---------|-------------|
-| 📊 **Dashboard** | Overview with mood analytics, charts, daily tips, and activity history |
-| 😊 **Mood Tracker** | Select emotions (happy, sad, stressed, angry, calm, anxious) with intensity and notes |
-| 🤖 **AI Companion** | Intelligent chatbot providing supportive suggestions for mental wellness |
-| 🌬️ **Breathing & Meditation** | Guided breathing exercises (Box, 4-7-8, Deep) with visual animations |
-| 📝 **Personal Journal** | Write daily thoughts with mood tagging and full CRUD operations |
-| 🎮 **Stress Relief Games** | Bubble popping, Zen garden, and Color flow interactive activities |
-| 🛒 **Wellness Shop** | Browse mental health products (stress balls, journals, essential oils, etc.) |
-| 🗺️ **Activity Finder** | Discover nearby parks, yoga centers, gyms, and more using maps |
-| 🎵 **Calming Music** | Procedurally generated ambient music with 10+ tracks and sound mixer |
-| 🌐 **3D Environment** | Immersive Three.js particle background with interactive visuals |
-
-### 🔐 Authentication
-- User registration and login with JWT tokens
-- Password hashing with bcryptjs
-- Guest mode available for trying the app
+- 📊 **Dashboard Analytics** – Track your mood, journal entries, and wellness streaks.
+- 😊 **AI Mood Tracker** – Log your emotions and use Gemini AI to detect mood via natural language.
+- 🤖 **AI Companion** – Chat with an intelligent wellness assistant.
+- 🌬️ **Breathing & Games** – Guided breathing animations and interactive stress-relief mini-games.
+- 🛒 **Wellness Shop with Razorpay** – Browse physical wellness products and checkout seamlessly.
+- 🎵 **Procedural Ambient Music** – Dynamically generated calming audio without any loaded MP3s!
 
 ---
 
 ## 🛠️ Tech Stack
 
 ### Frontend
-- **HTML5** – Semantic, accessible markup
-- **CSS3** – Glassmorphism, gradients, animations, responsive design
-- **JavaScript (ES6+)** – Modular, IIFE-based architecture
-- **Three.js** – 3D particle environment
-- **Chart.js** – Mood analytics (pie & line charts)
-- **Leaflet.js** – Interactive maps for activity finder
-- **Web Audio API** – Procedural ambient music generation
+- **HTML5/CSS3/JS** – Glassmorphism, animations, responsive design.
+- **Three.js** – Interactive 3D particle background.
+- **Web Audio API** – Mathematical ambient music generation.
 
-### Backend
-- **Node.js** – Runtime environment
-- **Express.js** – REST API framework
-- **MongoDB** – NoSQL database
-- **Mongoose** – ODM for MongoDB
-- **JWT** – JSON Web Token authentication
-- **bcryptjs** – Password hashing
+### Backend & Cloud Services
+- **Node.js & Express.js** – APIs and Razorpay payment signature verification.
+- **Supabase** – PostgreSQL database and Authentication (replaces legacy MongoDB).
+- **Google Gemini API** – AI Chatbot and text-based mood detection.
+- **Vercel** – Serverless deployment ready via `vercel.json` and `api/index.js`.
 
 ---
 
 ## 🚀 Getting Started
 
 ### Prerequisites
-
-Make sure you have the following installed:
-
-- **Node.js** (v16 or higher) – [Download](https://nodejs.org/)
-- **MongoDB** (v5 or higher) – [Download](https://www.mongodb.com/try/download/community) or use [MongoDB Atlas](https://www.mongodb.com/atlas)
-- **Git** – [Download](https://git-scm.com/)
+- Node.js (v18+)
+- A [Supabase](https://supabase.com/) project
+- A [Razorpay](https://razorpay.com/) test account
+- A [Google Gemini AI](https://ai.google.dev/) API Key
 
 ### Installation
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/mindspace-3d.git
-   cd mindspace-3d
+   git clone https://github.com/Prashant666-coder/MindSpace.git
+   cd MindSpace
    ```
 
 2. **Install dependencies**
@@ -85,166 +62,60 @@ Make sure you have the following installed:
    ```
 
 3. **Set up environment variables**
-   ```bash
-   cp .env.example .env
-   ```
-   
-   Edit `.env` with your configuration:
+   Create a `.env` file referencing `.env.example`:
    ```env
-   MONGODB_URI=mongodb://localhost:27017/mindspace3d
-   JWT_SECRET=your_secret_key_here
+   # API Configuration
    PORT=3000
+   NODE_ENV=development
+
+   # AI Integration
+   GEMINI_API_KEY=your_gemini_key
+
+   # Database & Auth
+   SUPABASE_URL=your_supabase_url
+   SUPABASE_ANON_KEY=your_supabase_key
+
+   # Payments
+   RAZORPAY_KEY_ID=your_razorpay_key_id
+   RAZORPAY_KEY_SECRET=your_razorpay_secret
    ```
 
-4. **Start MongoDB** (if running locally)
-   ```bash
-   mongod
-   ```
+4. **Initialize Database**
+   Copy the contents of `supabase_tables.sql` and run them in your Supabase SQL Editor.
 
-5. **Seed the database** (optional – adds sample products to the shop)
+5. **Start the server**
    ```bash
-   npm run seed
-   ```
-
-6. **Start the server**
-   ```bash
-   # Development mode (with auto-restart)
-   npm run dev
-   
-   # Production mode
    npm start
    ```
 
-7. **Open the application**
-   
-   Navigate to [http://localhost:3000](http://localhost:3000) in your browser.
-
----
-
-## 📡 API Reference
-
-### Authentication
-
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|:---:|
-| POST | `/api/auth/register` | Register new user | ❌ |
-| POST | `/api/auth/login` | Login & get token | ❌ |
-| GET | `/api/auth/me` | Get current user | ✅ |
-
-### Mood Tracking
-
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|:---:|
-| POST | `/api/mood` | Log a mood entry | ✅ |
-| GET | `/api/mood` | Get mood history | ✅ |
-| GET | `/api/mood/stats` | Get mood analytics | ✅ |
-| DELETE | `/api/mood/:id` | Delete mood entry | ✅ |
-
-### Journal
-
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|:---:|
-| POST | `/api/journal` | Create journal entry | ✅ |
-| GET | `/api/journal` | Get all entries | ✅ |
-| GET | `/api/journal/:id` | Get single entry | ✅ |
-| PUT | `/api/journal/:id` | Update entry | ✅ |
-| DELETE | `/api/journal/:id` | Delete entry | ✅ |
-
-### Products
-
-| Method | Endpoint | Description | Auth Required |
-|--------|----------|-------------|:---:|
-| GET | `/api/products` | Get all products | ❌ |
-| GET | `/api/products/:id` | Get single product | ❌ |
-| GET | `/api/products/category/:cat` | Get by category | ❌ |
-
-### Health Check
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/health` | API status check |
+6. **Open the application**  
+   Navigate to [http://localhost:3000](http://localhost:3000)
 
 ---
 
 ## 📁 Project Structure
 
 ```
-mindspace-3d/
+MindSpace/
 ├── public/                    # Frontend (static files)
-│   ├── index.html             # Main HTML page (SPA)
-│   ├── css/
-│   │   └── style.css          # Complete stylesheet
+│   ├── css/style.css          # Main stylesheet
 │   └── js/
-│       ├── three-scene.js     # Three.js 3D background
-│       ├── app.js             # Main app logic
-│       ├── chatbot.js         # AI companion chatbot
-│       ├── breathing.js       # Breathing exercises
+│       ├── app.js             # Core logic & Supabase database calls
+│       ├── music.js           # Procedural Web Audio API mixer
 │       ├── games.js           # Stress relief games
-│       └── music.js           # Music player
+│       └── three-scene.js     # 3D interactive background
 ├── server/                    # Backend
-│   ├── server.js              # Express server entry point
-│   ├── seed.js                # Database seed script
-│   ├── middleware/
-│   │   └── auth.js            # JWT auth middleware
-│   ├── models/
-│   │   ├── User.js            # User model
-│   │   ├── Mood.js            # Mood model
-│   │   ├── Journal.js         # Journal model
-│   │   └── Product.js         # Product model
-│   └── routes/
-│       ├── auth.js            # Auth routes
-│       ├── mood.js            # Mood routes
-│       ├── journal.js         # Journal routes
-│       └── products.js        # Product routes
-├── .env.example               # Environment variables template
-├── .gitignore                 # Git ignore rules
-├── package.json               # Node.js dependencies
-└── README.md                  # This file
+│   ├── routes/                # Express API routes (payment, gemini chat)
+│   ├── server.js              # Express app
+│   └── supabase.js            # Admin clients
+├── api/index.js               # Vercel Serverless bridge
+├── vercel.json                # Vercel routing
+├── supabase_tables.sql        # Postgres schema setup
+└── package.json               # Node modules
 ```
-
----
-
-## 🎨 Design Philosophy
-
-- **Glassmorphism UI** – Frosted glass effect with subtle transparency
-- **Dark Theme** – Easy on the eyes, reduces strain
-- **Purple-Teal Gradient** – Calming, therapeutic color palette
-- **Smooth Animations** – Gentle transitions and micro-interactions
-- **Responsive** – Works on desktop, tablet, and mobile
-- **3D Immersion** – Floating particles create a peaceful atmosphere
-
----
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
----
-
-## 📄 License
-
-This project is licensed under the MIT License – see the [LICENSE](LICENSE) file for details.
 
 ---
 
 ## ⚠️ Disclaimer
 
-MindSpace 3D is **not** a substitute for professional mental health care. If you're experiencing a mental health crisis, please contact:
-
-- **988 Suicide & Crisis Lifeline** (US): Call or text **988**
-- **Crisis Text Line**: Text **HOME** to **741741**
-- **International Association for Suicide Prevention**: https://www.iasp.info/resources/Crisis_Centres/
-
----
-
-<div align="center">
-
-Made with 💚 for mental wellness
-
-**MindSpace 3D** – *Your mind deserves a peaceful space.*
-
-</div>
+MindSpace 3D is **not** a substitute for professional mental health care. If you're experiencing a mental health crisis, please contact emergency lines in your country.
