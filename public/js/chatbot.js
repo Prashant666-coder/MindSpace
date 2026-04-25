@@ -87,7 +87,8 @@
     const msgDiv = document.createElement('div');
     msgDiv.className = `chat-message ${isUser ? 'user' : 'bot'}`;
 
-    const avatar = isUser ? 'You' : 'MS';
+    const avatarContent = isUser ? 'You' : `<img src="logo.jpeg" alt="MS" class="logo-emoji-img">`;
+    const avatarClass = isUser ? 'chat-avatar' : 'chat-avatar bot-img';
 
     // Convert markdown-like formatting to HTML
     const formattedText = text
@@ -95,7 +96,7 @@
       .replace(/\n/g, '<br>');
 
     msgDiv.innerHTML = `
-      <span class="chat-avatar">${avatar}</span>
+      <span class="${avatarClass}">${avatarContent}</span>
       <div class="chat-bubble"><p>${formattedText}</p></div>
     `;
 
@@ -118,7 +119,7 @@
     const typing = document.createElement('div');
     typing.className = 'chat-message bot typing';
     typing.innerHTML = `
-      <span class="chat-avatar">MS</span>
+      <span class="chat-avatar bot-img"><img src="logo.jpeg" alt="MS" class="logo-emoji-img"></span>
       <div class="chat-bubble typing-bubble">
         <div class="typing-dots">
           <span></span><span></span><span></span>
