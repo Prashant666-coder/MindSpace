@@ -2609,8 +2609,43 @@ body:not(.dark-mode) .suggestion-chip {
 
   .map-container {
     padding: 10px !important;
-    display: flex;
-    flex-direction: column;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  /* AI Companion Mobile UI Fix */
+  .chat-assistant-hero {
+    grid-template-columns: 1fr !important;
+    text-align: center;
+    padding: 20px 20px 0 !important;
+    gap: 10px !important;
+  }
+
+  .assistant-visual {
+    width: 80px !important;
+    height: 80px !important;
+    margin: 0 auto;
+  }
+
+  .assistant-visual lottie-player {
+    width: 70px !important;
+    height: 70px !important;
+  }
+
+  .chat-messages {
+    height: 300px !important;
+    padding: 15px !important;
+  }
+
+  .chat-input-area {
+    padding: 12px 15px !important;
+    flex-wrap: wrap;
+  }
+
+  .chat-input-area input {
+    width: 100%;
+    order: -1;
+    margin-bottom: 8px;
   }
 }
 

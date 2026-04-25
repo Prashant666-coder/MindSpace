@@ -1230,6 +1230,11 @@
       document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       renderProducts(btn.dataset.category);
+      
+      // Auto-scroll to products on mobile
+      if (window.innerWidth <= 480) {
+        document.getElementById('products-grid')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
     });
   });
 

@@ -205,6 +205,11 @@
         document.querySelectorAll('.sound-cat-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         renderTrackList(btn.dataset.cat);
+        
+        // Auto-scroll to tracks on mobile
+        if (window.innerWidth <= 480) {
+          document.getElementById('track-list')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
       });
     });
 
