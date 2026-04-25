@@ -31,7 +31,7 @@ router.post('/', async (req, res) => {
     const { data, error } = await sb
       .from('journals')
       .insert([{
-        userId: req.userId,
+        user_id: req.userId,
         title,
         content,
         mood: mood || '',
@@ -62,7 +62,7 @@ router.get('/', async (req, res) => {
     const { data, error, count } = await sb
       .from('journals')
       .select('*', { count: 'exact' })
-      .eq('userId', req.userId)
+      .eq('user_id', req.userId)
       .order('createdAt', { ascending: false })
       .range(offset, offset + limit - 1)
 
@@ -86,7 +86,7 @@ router.get('/:id', async (req, res) => {
       .from('journals')
       .select('*')
       .eq('id', req.params.id)
-      .eq('userId', req.userId)
+      .eq('user_id', req.userId)
       .single()
 
     if (error) {
@@ -120,7 +120,7 @@ router.put('/:id', async (req, res) => {
         updatedAt: new Date().toISOString()
       })
       .eq('id', req.params.id)
-      .eq('userId', req.userId)
+      .eq('user_id', req.userId)
       .select()
 
     if (error) throw error
@@ -147,7 +147,7 @@ router.delete('/:id', async (req, res) => {
       .from('journals')
       .delete()
       .eq('id', req.params.id)
-      .eq('userId', req.userId)
+      .eq('user_id', req.userId)
       .select()
 
     if (error) throw error

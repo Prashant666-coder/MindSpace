@@ -85,7 +85,7 @@ router.post('/', async (req, res) => {
     const { data, error } = await sb
       .from('moods')
       .insert([{
-        userId: req.userId,
+        user_id: req.userId,
         emotion: emotion.toLowerCase(),
         intensity: intensity || 5,
         note: note || '',
@@ -115,7 +115,7 @@ router.get('/', async (req, res) => {
     const { data, error, count } = await sb
       .from('moods')
       .select('*', { count: 'exact' })
-      .eq('userId', req.userId)
+      .eq('user_id', req.userId)
       .order('date', { ascending: false })
       .range(offset, offset + limit - 1)
 
@@ -138,7 +138,7 @@ router.get('/stats', async (req, res) => {
     const { data: allMoods, error } = await sb
       .from('moods')
       .select('*')
-      .eq('userId', req.userId)
+      .eq('user_id', req.userId)
 
     if (error) throw error
 
@@ -188,7 +188,7 @@ router.delete('/:id', async (req, res) => {
       .from('moods')
       .delete()
       .eq('id', req.params.id)
-      .eq('userId', req.userId)
+      .eq('user_id', req.userId)
       .select()
 
     if (error) throw error
