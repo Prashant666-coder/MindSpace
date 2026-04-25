@@ -2647,6 +2647,24 @@ body:not(.dark-mode) .suggestion-chip {
     order: -1;
     margin-bottom: 8px;
   }
+
+  /* Interactive Mobile User Icon */
+  .mobile-user {
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.05);
+    transition: var(--transition);
+  }
+
+  .mobile-user:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #f87171;
+  }
 }
 
 /* ═══════════ UTILITY CLASSES ═══════════ */

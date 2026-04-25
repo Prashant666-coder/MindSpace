@@ -224,7 +224,7 @@
   }
 
   // Logout
-  document.getElementById('logout-btn').addEventListener('click', async () => {
+  const handleLogout = async () => {
     await supabaseClient.auth.signOut();
     state.token = null;
     state.user = null;
@@ -240,8 +240,12 @@
     localStorage.removeItem('mindspace_cart');
     authOverlay.classList.add('active');
     appEl.classList.add('hidden');
+    sidebar.classList.remove('active'); // Close mobile sidebar if open
     showToast('Logged out successfully', 'info');
-  });
+  };
+
+  document.getElementById('logout-btn').addEventListener('click', handleLogout);
+  document.getElementById('mobile-logout-btn')?.addEventListener('click', handleLogout);
 
   // ═══════════ NAVIGATION ═══════════
   const navItems = document.querySelectorAll('.nav-item');
