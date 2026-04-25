@@ -2472,33 +2472,140 @@ body:not(.dark-mode) .suggestion-chip {
   }
 
   .stats-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr !important;
   }
 
   .mood-selector {
-    gap: 8px;
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px !important;
   }
 
   .mood-option {
     padding: 12px 14px;
-    min-width: 80px;
+    min-width: unset !important;
   }
 
   .breathing-exercises {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr !important;
   }
 
+  /* Improved Grids for Mobile */
   .products-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr !important;
+    gap: 16px;
   }
 
+  /* Horizontal Scrolling for Filters */
   .game-tabs,
   .shop-filters,
   .activity-types,
-  .sound-categories {
-    overflow-x: auto;
-    flex-wrap: nowrap;
-    padding-bottom: 8px;
+  .sound-categories,
+  .shop-history-toggle {
+    display: flex !important;
+    overflow-x: auto !important;
+    flex-wrap: nowrap !important;
+    padding-bottom: 12px;
+    justify-content: flex-start !important;
+    -webkit-overflow-scrolling: touch;
+    gap: 10px !important;
+  }
+
+  /* Hide scrollbars for cleaner look on mobile */
+  .game-tabs::-webkit-scrollbar,
+  .shop-filters::-webkit-scrollbar,
+  .activity-types::-webkit-scrollbar,
+  .sound-categories::-webkit-scrollbar,
+  .shop-history-toggle::-webkit-scrollbar {
+    display: none;
+  }
+
+  .filter-btn, .activity-type-btn, .sound-cat-btn, .history-btn {
+    white-space: nowrap !important;
+    flex-shrink: 0 !important;
+    padding: 8px 16px !important;
+  }
+
+  /* Activity Finder Mobile Optimizations */
+  .activity-map {
+    height: 250px !important;
+  }
+
+  .activity-item {
+    padding: 12px;
+    gap: 12px;
+  }
+
+  .activity-icon {
+    font-size: 1.5rem;
+    min-width: 40px;
+  }
+
+  /* Music Player Mobile Optimizations */
+  .music-player {
+    padding: 20px 15px;
+  }
+
+  .now-playing {
+    flex-direction: column !important;
+    text-align: center;
+    gap: 15px;
+  }
+
+  .album-art {
+    width: 100px !important;
+    height: 100px !important;
+    font-size: 3rem;
+  }
+
+  .volume-control {
+    display: none !important;
+  }
+
+  .player-controls {
+    gap: 15px;
+  }
+
+  .player-btn {
+    width: 45px !important;
+    height: 45px !important;
+  }
+
+  .player-btn.play-btn {
+    width: 55px !important;
+    height: 55px !important;
+  }
+
+  /* Ambient Mixer Mobile Layout */
+  .mixer-channels {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 10px !important;
+  }
+
+  .mixer-channel {
+    background: rgba(255, 255, 255, 0.05);
+    padding: 10px 15px;
+    border-radius: 12px;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+  }
+
+  .mixer-channel span {
+    min-width: unset !important;
+  }
+
+  /* Shop Layout Mobile */
+  .shop-header {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 15px;
+  }
+
+  .shop-actions {
+    justify-content: space-between !important;
+    width: 100%;
   }
 }
 
@@ -3416,36 +3523,7 @@ textarea:focus-visible,
   }
 }
 
-/* ─── Very Small Devices (< 480px) ─── */
-@media (max-width: 480px) {
-  .stats-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .mood-selector {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  .track-item {
-    flex-direction: column;
-    text-align: center;
-    gap: 10px;
-    padding: 15px;
-  }
-
-  .track-duration {
-    margin-top: 5px;
-  }
-
-  .activity-types {
-    overflow-x: auto;
-    justify-content: flex-start;
-  }
-
-  .activity-type-btn {
-    flex-shrink: 0;
-  }
-}
+/* Removed redundant mobile media query as logic is consolidated at line 2464 */
 
 /* ═══════════ SHOP: CART & HISTORY ═══════════ */
 
