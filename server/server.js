@@ -2,13 +2,12 @@
  * MindSpace 3D – AI Mental Wellness Platform
  * Main Server Entry Point
  * 
- * This file initializes Express server, connects to MongoDB,
- * sets up middleware, and registers all API routes.
+ * This file initializes Express server, sets up middleware,
+ * and registers all API routes using Supabase for data persistence.
  */
 
 require('dotenv').config();
 const express = require('express');
-const mongoose = require('mongoose');
 const cors = require('cors');
 const morgan = require('morgan');
 const path = require('path');
@@ -34,7 +33,7 @@ app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
 // ─── API Routes ──────────────────────────────────────────────
-app.use('/api/auth', authRoutes);       // Authentication (register, login)
+app.use('/api/auth', authRoutes);       // Authentication routes
 app.use('/api/mood', moodRoutes);       // Mood tracking CRUD
 app.use('/api/journal', journalRoutes); // Journal entries CRUD
 app.use('/api/products', productRoutes); // Shop products listing
@@ -43,7 +42,7 @@ app.use('/api', chatRoutes);            // Chatbot endpoint
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', message: 'MindSpace 3D API is running 🧠✨' });
+  res.json({ status: 'ok', message: 'MindSpace 3D API is running 🧠✨ (Supabase Powered)' });
 });
 
 // Serve the frontend for any non-API route (SPA support)
@@ -51,25 +50,13 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
 });
 
-// ─── MongoDB Connection ──────────────────────────────────────
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/mindspace3d';
-
-mongoose.connect(MONGODB_URI, { serverSelectionTimeoutMS: 2000 })
-  .then(() => {
-    console.log('✅ Connected to MongoDB successfully');
-    // Start the server after DB connection
-    app.listen(PORT, () => {
-      console.log(`🧠 MindSpace 3D server running at http://localhost:${PORT}`);
-      console.log(`📊 API available at http://localhost:${PORT}/api`);
-    });
-  })
-  .catch((err) => {
-    console.error('❌ MongoDB connection error:', err.message);
-    console.log('💡 Make sure MongoDB is running locally or update MONGODB_URI in .env');
-    // Start server even without DB for frontend development
-    app.listen(PORT, () => {
-      console.log(`⚠️  Server running WITHOUT database at http://localhost:${PORT}`);
-    });
+// ─── Start Server ─────────────────────────────────────────────
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`🧠 MindSpace 3D server running at http://localhost:${PORT}`);
+    console.log(`📊 API available at http://localhost:${PORT}/api`);
+    console.log(`🔗 Connected to Supabase for data persistence`);
   });
+}
 
 module.exports = app;

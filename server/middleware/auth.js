@@ -1,30 +1,36 @@
 /**
- * JWT Authentication Middleware
- * Verifies the token from the Authorization header
- * and attaches the user ID to the request object.
+ * Supabase Authentication Middleware
+ * Verifies the user's Supabase JWT from the Authorization header.
+ * Attaches userId, user object, and raw token to the request.
  */
 
-const jwt = require('jsonwebtoken');
+const { supabase } = require('../supabase')
 
-const JWT_SECRET = process.env.JWT_SECRET || 'mindspace3d_default_secret';
-
-function authMiddleware(req, res, next) {
+async function authMiddleware(req, res, next) {
   try {
-    // Get token from Authorization header: "Bearer <token>"
-    const authHeader = req.headers.authorization;
+    const authHeader = req.headers.authorization
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ error: 'Access denied. No token provided.' });
+      return res.status(401).json({ error: 'Access denied. No token provided.' })
     }
 
-    const token = authHeader.split(' ')[1];
-    const decoded = jwt.verify(token, JWT_SECRET);
-    
-    // Attach user ID to request for use in route handlers
-    req.userId = decoded.userId;
-    next();
+    const token = authHeader.split(' ')[1]
+
+    // Verify token with Supabase
+    const { data: { user }, error } = await supabase.auth.getUser(token)
+
+    if (error || !user) {
+      return res.status(401).json({ error: 'Invalid or expired token.' })
+    }
+
+    // Attach to request for downstream use
+    req.userId = user.id
+    req.user = user
+    req.supabaseToken = token  // Routes need this to create user-scoped Supabase clients
+    next()
   } catch (err) {
-    return res.status(401).json({ error: 'Invalid or expired token.' });
+    console.error('Auth Middleware Error:', err)
+    return res.status(500).json({ error: 'Internal server error during authentication.' })
   }
 }
 
-module.exports = authMiddleware;
+module.exports = authMiddleware

@@ -6,31 +6,31 @@
  * DELETE /api/mood/:id   – Delete a mood entry
  */
 
-const express = require('express');
-const Mood = require('../models/Mood');
-const authMiddleware = require('../middleware/auth');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+const express = require('express')
+const { getSupabase } = require('../supabase')
+const authMiddleware = require('../middleware/auth')
+const { GoogleGenerativeAI } = require('@google/generative-ai')
 
-const router = express.Router();
+const router = express.Router()
 
 /**
  * POST /api/mood/detect
- * Detect mood from user input text using Gemini AI
+ * Detect mood from user input text using Gemini AI (public, no auth needed)
  */
 router.post('/detect', async (req, res) => {
   try {
-    const { text } = req.body;
+    const { text } = req.body
 
     if (!text || text.trim().length < 5) {
-      return res.status(400).json({ error: 'Please provide more details for accurate detection.' });
+      return res.status(400).json({ error: 'Please provide more details for accurate detection.' })
     }
 
     if (!process.env.GEMINI_API_KEY) {
-      return res.status(500).json({ error: 'AI detection is currently unavailable (API key missing).' });
+      return res.status(500).json({ error: 'AI detection is currently unavailable (API key missing).' })
     }
 
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
+    const model = genAI.getGenerativeModel({ model: 'gemini-flash-latest' })
 
     const prompt = `
       Analyze the following user's questionnaire responses and detect their current mood and its intensity.
@@ -42,148 +42,166 @@ router.post('/detect', async (req, res) => {
       
       Respond STRICTLY in JSON format with two fields: "emotion" and "intensity".
       Example: {"emotion": "happy", "intensity": 8}
-    `;
+    `
 
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const responseText = response.text().trim();
-    
-    // Extract JSON from response (sometimes Gemini wraps it in markdown)
-    const jsonMatch = responseText.match(/\{.*\}/s);
-    if (!jsonMatch) {
-      throw new Error('Failed to parse AI response');
-    }
-    
-    const detected = JSON.parse(jsonMatch[0]);
-    
-    // Validate detected emotion
-    const validEmotions = ['happy', 'sad', 'stressed', 'angry', 'calm', 'anxious'];
+    const result = await model.generateContent(prompt)
+    const response = await result.response
+    const responseText = response.text().trim()
+
+    const jsonMatch = responseText.match(/\{.*\}/s)
+    if (!jsonMatch) throw new Error('Failed to parse AI response')
+
+    const detected = JSON.parse(jsonMatch[0])
+
+    const validEmotions = ['happy', 'sad', 'stressed', 'angry', 'calm', 'anxious']
     if (!validEmotions.includes(detected.emotion.toLowerCase())) {
-        detected.emotion = 'calm'; // Fallback
+      detected.emotion = 'calm'
     }
 
     res.json({
       emotion: detected.emotion.toLowerCase(),
       intensity: Math.min(Math.max(parseInt(detected.intensity) || 5, 1), 10),
       message: 'Mood detected! ✨'
-    });
-
+    })
   } catch (err) {
-    console.error('AI Mood Detection Error:', err);
-    res.status(500).json({ error: 'Failed to detect mood using AI.' });
+    console.error('AI Mood Detection Error:', err)
+    res.status(500).json({ error: 'Failed to detect mood using AI.' })
   }
-});
+})
 
 // All mood routes below require authentication
-router.use(authMiddleware);
+router.use(authMiddleware)
 
 /**
  * POST /api/mood
- * Log a new mood entry
  */
 router.post('/', async (req, res) => {
   try {
-    const { emotion, intensity, note } = req.body;
+    const { emotion, intensity, note } = req.body
+    if (!emotion) return res.status(400).json({ error: 'Emotion is required.' })
 
-    if (!emotion) {
-      return res.status(400).json({ error: 'Emotion is required.' });
-    }
+    const sb = getSupabase(req.supabaseToken)
 
-    const mood = new Mood({
-      userId: req.userId,
-      emotion,
-      intensity: intensity || 5,
-      note: note || ''
-    });
+    const { data, error } = await sb
+      .from('moods')
+      .insert([{
+        userId: req.userId,
+        emotion: emotion.toLowerCase(),
+        intensity: intensity || 5,
+        note: note || '',
+        date: new Date().toISOString()
+      }])
+      .select()
 
-    await mood.save();
-    res.status(201).json({ message: 'Mood logged successfully! 📊', mood });
+    if (error) throw error
+
+    res.status(201).json({ message: 'Mood logged successfully! 📊', mood: data[0] })
   } catch (err) {
-    console.error('Mood creation error:', err);
-    res.status(500).json({ error: 'Failed to log mood.' });
+    console.error('Mood creation error:', err)
+    res.status(500).json({ error: 'Failed to log mood.' })
   }
-});
+})
 
 /**
  * GET /api/mood
- * Get mood history for the authenticated user
- * Query params: ?limit=30&offset=0
  */
 router.get('/', async (req, res) => {
   try {
-    const limit = parseInt(req.query.limit) || 30;
-    const offset = parseInt(req.query.offset) || 0;
+    const limit = parseInt(req.query.limit) || 30
+    const offset = parseInt(req.query.offset) || 0
 
-    const moods = await Mood.find({ userId: req.userId })
-      .sort({ date: -1 })
-      .skip(offset)
-      .limit(limit);
+    const sb = getSupabase(req.supabaseToken)
 
-    const total = await Mood.countDocuments({ userId: req.userId });
+    const { data, error, count } = await sb
+      .from('moods')
+      .select('*', { count: 'exact' })
+      .eq('userId', req.userId)
+      .order('date', { ascending: false })
+      .range(offset, offset + limit - 1)
 
-    res.json({ moods, total, limit, offset });
+    if (error) throw error
+
+    res.json({ moods: data || [], total: count, limit, offset })
   } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch mood history.' });
+    console.error('Mood fetch error:', err)
+    res.status(500).json({ error: 'Failed to fetch mood history.' })
   }
-});
+})
 
 /**
  * GET /api/mood/stats
- * Get mood analytics for the current user
- * Returns emotion distribution and daily averages
  */
 router.get('/stats', async (req, res) => {
   try {
-    // Get mood distribution (count per emotion)
-    const distribution = await Mood.aggregate([
-      { $match: { userId: require('mongoose').Types.ObjectId.createFromHexString(req.userId.toString()) } },
-      { $group: { _id: '$emotion', count: { $sum: 1 }, avgIntensity: { $avg: '$intensity' } } },
-      { $sort: { count: -1 } }
-    ]);
+    const sb = getSupabase(req.supabaseToken)
 
-    // Get moods from last 7 days for trend
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const { data: allMoods, error } = await sb
+      .from('moods')
+      .select('*')
+      .eq('userId', req.userId)
 
-    const recentMoods = await Mood.find({
-      userId: req.userId,
-      date: { $gte: sevenDaysAgo }
-    }).sort({ date: 1 });
+    if (error) throw error
 
-    // Total mood entries
-    const totalEntries = await Mood.countDocuments({ userId: req.userId });
+    // Calculate distribution
+    const moodCounts = {}
+    ;(allMoods || []).forEach(m => {
+      if (!moodCounts[m.emotion]) {
+        moodCounts[m.emotion] = { emotion: m.emotion, count: 0, sumIntensity: 0 }
+      }
+      moodCounts[m.emotion].count++
+      moodCounts[m.emotion].sumIntensity += m.intensity
+    })
+
+    const distribution = Object.values(moodCounts).map(m => ({
+      _id: m.emotion,
+      count: m.count,
+      avgIntensity: m.sumIntensity / m.count
+    })).sort((a, b) => b.count - a.count)
+
+    // Filter recent moods (last 7 days)
+    const sevenDaysAgo = new Date()
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+    const recentMoods = (allMoods || [])
+      .filter(m => new Date(m.date) >= sevenDaysAgo)
+      .sort((a, b) => new Date(a.date) - new Date(b.date))
 
     res.json({
       distribution,
       recentMoods,
-      totalEntries,
+      totalEntries: (allMoods || []).length,
       message: 'Mood analytics loaded 📈'
-    });
+    })
   } catch (err) {
-    console.error('Mood stats error:', err);
-    res.status(500).json({ error: 'Failed to fetch mood statistics.' });
+    console.error('Mood stats error:', err)
+    res.status(500).json({ error: 'Failed to fetch mood statistics.' })
   }
-});
+})
 
 /**
  * DELETE /api/mood/:id
- * Delete a specific mood entry
  */
 router.delete('/:id', async (req, res) => {
   try {
-    const mood = await Mood.findOneAndDelete({
-      _id: req.params.id,
-      userId: req.userId
-    });
+    const sb = getSupabase(req.supabaseToken)
 
-    if (!mood) {
-      return res.status(404).json({ error: 'Mood entry not found.' });
+    const { data, error } = await sb
+      .from('moods')
+      .delete()
+      .eq('id', req.params.id)
+      .eq('userId', req.userId)
+      .select()
+
+    if (error) throw error
+
+    if (!data || data.length === 0) {
+      return res.status(404).json({ error: 'Mood entry not found.' })
     }
 
-    res.json({ message: 'Mood entry deleted.', mood });
+    res.json({ message: 'Mood entry deleted.', mood: data[0] })
   } catch (err) {
-    res.status(500).json({ error: 'Failed to delete mood entry.' });
+    console.error('Mood deletion error:', err)
+    res.status(500).json({ error: 'Failed to delete mood entry.' })
   }
-});
+})
 
-module.exports = router;
+module.exports = router

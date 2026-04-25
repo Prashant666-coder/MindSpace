@@ -30,6 +30,11 @@
   // ═══════════ API HELPERS ═══════════
   const API_BASE = '/api';
 
+  // ─── Supabase Initialization ───
+  const supabaseUrl = 'https://dugmxhzqtlqsrimmmxze.supabase.co';
+  const supabaseKey = 'sb_publishable_iUQdYVaVdEjUo_UjTdpY1g_aeM35vbZ';
+  const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
+
   async function apiRequest(endpoint, options = {}) {
     const config = {
       headers: { 'Content-Type': 'application/json' },
@@ -119,12 +124,26 @@
     const password = document.getElementById('login-password').value;
 
     try {
-      const data = await apiRequest('/auth/login', {
-        method: 'POST',
-        body: JSON.stringify({ email, password })
+
+      const { data, error } = await supabaseClient.auth.signInWithPassword({
+        email,
+        password,
       });
-      handleAuthSuccess(data);
+
+
+      if (error) throw error;
+      
+      handleAuthSuccess({
+        token: data.session.access_token,
+        user: {
+          id: data.user.id,
+          email: data.user.email,
+          name: data.user.user_metadata.name || data.user.email.split('@')[0]
+        },
+        message: 'Welcome back! 🧠✨'
+      });
     } catch (err) {
+
       authError.textContent = err.message;
     }
   });
@@ -137,12 +156,34 @@
     const password = document.getElementById('register-password').value;
 
     try {
-      const data = await apiRequest('/auth/register', {
-        method: 'POST',
-        body: JSON.stringify({ name, email, password })
+
+      const { data, error } = await supabaseClient.auth.signUp({
+        email,
+        password,
+        options: {
+          data: { name }
+        }
       });
-      handleAuthSuccess(data);
+
+
+      if (error) throw error;
+
+      if (data.session) {
+        handleAuthSuccess({
+          token: data.session.access_token,
+          user: {
+            id: data.user.id,
+            email: data.user.email,
+            name: data.user.user_metadata.name
+          },
+          message: 'Account created successfully! 🎉'
+        });
+      } else {
+        showToast('Registration successful! Please check your email for verification.', 'info');
+        authError.textContent = 'Verification email sent. Please check your inbox.';
+      }
     } catch (err) {
+
       authError.textContent = err.message;
     }
   });
@@ -176,11 +217,20 @@
   }
 
   // Logout
-  document.getElementById('logout-btn').addEventListener('click', () => {
+  document.getElementById('logout-btn').addEventListener('click', async () => {
+    await supabaseClient.auth.signOut();
     state.token = null;
     state.user = null;
+    state.moodHistory = [];
+    state.journalEntries = [];
+    state.orderHistory = [];
+    state.cart = [];
     localStorage.removeItem('mindspace_token');
     localStorage.removeItem('mindspace_user');
+    localStorage.removeItem('mindspace_moods');
+    localStorage.removeItem('mindspace_journals');
+    localStorage.removeItem('mindspace_orders');
+    localStorage.removeItem('mindspace_cart');
     authOverlay.classList.add('active');
     appEl.classList.add('hidden');
     showToast('Logged out successfully', 'info');
@@ -343,10 +393,17 @@
     // Try to save to server
     if (state.token) {
       try {
-        await apiRequest('/mood', {
-          method: 'POST',
-          body: JSON.stringify(moodData)
-        });
+        const { data: { user } } = await window.MindSpace.supabase.auth.getUser();
+        if (user) {
+          const { error } = await window.MindSpace.supabase.from('moods').insert([{
+            user_id: user.id,
+            emotion: moodData.emotion,
+            intensity: moodData.intensity,
+            note: moodData.note,
+            date: moodData.date
+          }]);
+          if (error) throw error;
+        }
       } catch (err) {
         console.log('Saving mood locally');
       }
@@ -363,6 +420,17 @@
     moodIntensity.value = 5;
     intensityValue.textContent = '5';
     logMoodBtn.disabled = true;
+
+    // Reset AI detection fields
+    document.getElementById('ai-q-day').value = '';
+    document.getElementById('ai-q-event').value = '';
+    document.getElementById('ai-q-energy').value = '';
+    document.getElementById('ai-q-mind').value = '';
+    
+    const detectMoodAiBtn = document.getElementById('detect-mood-ai-btn');
+    const aiDetectResult = document.getElementById('ai-detect-result');
+    if (detectMoodAiBtn) detectMoodAiBtn.disabled = false;
+    if (aiDetectResult) aiDetectResult.style.display = 'none';
 
     showToast('Mood logged successfully! 📊', 'success');
     renderMoodHistory();
@@ -512,11 +580,20 @@
     // Try saving to server
     if (state.token) {
       try {
-        const data = await apiRequest('/journal', {
-          method: 'POST',
-          body: JSON.stringify(entry)
-        });
-        if (data.entry) entry.id = data.entry._id;
+        const { data: { user } } = await window.MindSpace.supabase.auth.getUser();
+        if (user) {
+          const { data, error } = await window.MindSpace.supabase.from('journals').insert([{
+            user_id: user.id,
+            title: entry.title,
+            content: entry.content,
+            mood: entry.mood,
+            createdAt: entry.createdAt,
+            updatedAt: entry.createdAt
+          }]).select();
+          if (!error && data && data.length > 0) {
+            entry.id = data[0].id;
+          }
+        }
       } catch (err) {
         console.log('Saving journal locally');
       }
@@ -567,7 +644,7 @@
 
     // Delete from server if logged in
     if (state.token && entry.id && entry.id.length > 15) {
-      apiRequest(`/journal/${entry.id}`, { method: 'DELETE' }).catch(() => {});
+      window.MindSpace.supabase.from('journals').delete().eq('id', entry.id).then();
     }
 
     state.journalEntries.splice(index, 1);
@@ -613,7 +690,22 @@
     return streak;
   }
 
-  function loadDashboardData() {
+  async function loadDashboardData() {
+    if (state.token) {
+      try {
+        const { data: { user } } = await window.MindSpace.supabase.auth.getUser();
+        if (user) {
+          const { data: moods } = await window.MindSpace.supabase.from('moods').select('*').eq('user_id', user.id).order('date', { ascending: false });
+          if (moods) state.moodHistory = moods;
+
+          const { data: journals } = await window.MindSpace.supabase.from('journals').select('*').eq('user_id', user.id).order('createdAt', { ascending: false });
+          if (journals) state.journalEntries = journals;
+        }
+      } catch (err) {
+        console.error('Error fetching dashboard data:', err);
+      }
+    }
+    
     updateDashboardStats();
     updateCharts();
     renderRecentActivity();
@@ -789,35 +881,13 @@
 
   // ═══════════ SHOP ═══════════
   async function loadProducts() {
-    // Try loading from server
     try {
       const data = await apiRequest('/products');
-      if (data.products && data.products.length > 0) {
-        state.products = data.products;
-      } else {
-        loadFallbackProducts();
-      }
+      state.products = data.products || [];
     } catch {
-      loadFallbackProducts();
+      state.products = [];
     }
     renderProducts('all');
-  }
-
-  function loadFallbackProducts() {
-    state.products = [
-      { name: 'Calm Stress Ball Set', description: 'Soft, squeezable stress balls in calming colors.', price: 1099, category: 'stress-relief', rating: 5, image: '' },
-      { name: 'Premium Fidget Cube', description: 'Six-sided fidget cube with buttons, switches, and spinners.', price: 849, category: 'stress-relief', rating: 4, image: '' },
-      { name: 'Mindfulness Journal', description: 'Guided journal with daily prompts for gratitude and reflection.', price: 2099, category: 'journal', rating: 5, image: '' },
-      { name: 'Bamboo Meditation Cushion', description: 'Ergonomic meditation cushion with organic buckwheat filling.', price: 3349, category: 'meditation', rating: 5, image: '' },
-      { name: 'Lavender Essential Oil Set', description: 'Pure lavender essential oil kit with diffuser.', price: 2499, category: 'aromatherapy', rating: 4, image: '' },
-      { name: 'Yoga Mat – Extra Thick', description: 'Premium 6mm thick yoga mat with alignment lines.', price: 2949, category: 'fitness', rating: 5, image: '' },
-      { name: 'The Anxiety Toolkit', description: 'Practical guide with evidence-based strategies for managing anxiety.', price: 1449, category: 'books', rating: 4, image: '' },
-      { name: 'Weighted Blanket – 15 lbs', description: 'Glass bead weighted blanket for deep pressure stimulation.', price: 4999, category: 'accessories', rating: 5, image: '' },
-      { name: 'Tibetan Singing Bowl', description: 'Hand-hammered singing bowl for meditation and sound healing.', price: 3749, category: 'meditation', rating: 5, image: '' },
-      { name: 'Resistance Band Set', description: 'Color-coded resistance bands for stress-relieving workouts.', price: 1649, category: 'fitness', rating: 4, image: '' },
-      { name: 'Aromatherapy Candle Set', description: 'Set of 4 soy wax candles in calming scents.', price: 2349, category: 'aromatherapy', rating: 4, image: '/Users/prashanttripathi/.gemini/antigravity/brain/cae8f9f6-515f-42c8-b2c6-0b0e727e46df/aromatherapy_candle_set_1774429016560.png' },
-      { name: 'Gratitude Card Deck', description: 'Weekly gratitude prompts in a beautiful card deck.', price: 1249, category: 'journal', rating: 4, image: '' }
-    ];
   }
 
   function renderProducts(category) {
@@ -936,11 +1006,17 @@
 
   function saveOrderLocally(order) {
     if (!order) return;
-    // Don't duplicate
-    if (state.localOrderHistory.find(o => o.razorpayOrderId === order.razorpayOrderId)) return;
-    
-    state.localOrderHistory.unshift(order);
-    localStorage.setItem('mindspace_orders', JSON.stringify(state.localOrderHistory));
+    // Don't duplicate in local
+    if (!state.localOrderHistory.find(o => o.razorpayOrderId === order.razorpayOrderId)) {
+      state.localOrderHistory.unshift(order);
+      localStorage.setItem('mindspace_orders', JSON.stringify(state.localOrderHistory));
+    }
+    // Optimistically update network history if logged in
+    if (state.token) {
+      if (!state.orderHistory.find(o => o.razorpayOrderId === order.razorpayOrderId)) {
+        state.orderHistory.unshift(order);
+      }
+    }
   }
 
   function renderCart() {
@@ -1018,13 +1094,23 @@
   }
 
   async function loadOrderHistory() {
-    // If logged in, fetch from server to get full history
+    // If logged in, fetch from Supabase to get full history
     if (state.token) {
       try {
-        const data = await apiRequest('/payment/my-orders');
-        state.orderHistory = data.orders || [];
+        const { data: { user } } = await window.MindSpace.supabase.auth.getUser();
+        if (user) {
+          const { data, error } = await window.MindSpace.supabase
+            .from('orders')
+            .select('*')
+            .eq('user_id', user.id)
+            .order('createdAt', { ascending: false });
+          if (!error && data) {
+            state.orderHistory = data;
+          }
+        }
       } catch (err) {
-        console.error('History Fetch Error:', err);
+        // Silently handle – tables may not exist yet in Supabase
+        state.orderHistory = [];
       }
     }
     
@@ -1035,13 +1121,14 @@
   function renderOrderHistory() {
     const list = document.getElementById('orders-history-list');
     
-    // Combine server history and local history, ensuring uniqueness by Razorpay Order ID
-    const combined = [...state.orderHistory];
-    state.localOrderHistory.forEach(localOrder => {
-      if (!combined.find(o => o.razorpayOrderId === localOrder.razorpayOrderId)) {
-        combined.push(localOrder);
-      }
-    });
+    let combined = [];
+    if (state.token) {
+      // Logged in: ONLY show user-specific orders from Supabase
+      combined = [...state.orderHistory];
+    } else {
+      // Guest: show browser's local guest orders
+      combined = [...state.localOrderHistory];
+    }
 
     // Sort by date descending
     combined.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
@@ -1288,7 +1375,6 @@
           currency: orderData.currency,
           name: "MindSpace 3D",
           description: `Wellness Purchase (${items.length} items)`,
-          image: "/logo.jpeg",
           order_id: orderData.id,
           handler: async function (response) {
             try {
@@ -1298,26 +1384,45 @@
                 body: JSON.stringify({
                   razorpay_order_id: response.razorpay_order_id,
                   razorpay_payment_id: response.razorpay_payment_id,
-                  razorpay_signature: response.razorpay_signature,
-                  customerDetails,
-                  items,
-                  totalAmount,
-                  userId: state.token ? state.user?._id || state.user?.id : null
+                  razorpay_signature: response.razorpay_signature
                 })
               });
 
-              if (verification.status === 'success' || verification.status === 'partial_success') {
-                state.lastConfirmedOrder = verification.order;
+              if (verification.status === 'success') {
+                const { data: { user } } = await window.MindSpace.supabase.auth.getUser();
+                const orderData = {
+                  razorpayOrderId: response.razorpay_order_id,
+                  razorpayPaymentId: response.razorpay_payment_id,
+                  razorpaySignature: response.razorpay_signature,
+                  user_id: user ? user.id : null,
+                  items,
+                  totalAmount,
+                  customer: customerDetails,
+                  status: 'captured',
+                  createdAt: new Date().toISOString()
+                };
+
+                const insertRes = await window.MindSpace.supabase.from('orders').insert([orderData]).select();
+                if (insertRes.error) {
+                  console.error('Supabase Insert Error:', insertRes.error);
+                  throw insertRes.error;
+                }
+
+                const savedOrder = insertRes.data ? insertRes.data[0] : orderData;
+
+                state.lastConfirmedOrder = savedOrder;
                 state.cart = [];
                 saveCart();
-                saveOrderLocally(verification.order);
+                saveOrderLocally(savedOrder);
                 renderCart();
                 renderProducts(document.querySelector('.filter-btn.active')?.dataset.category || 'all');
-                showSuccessModal(verification.order);
+                showSuccessModal(savedOrder);
               } else {
+                console.error('Verify failed response:', verification);
                 throw new Error('Verification failed');
               }
             } catch (err) {
+              console.error('Verification catch err:', err);
               showToast('Verification failed. Contact support.', 'error');
               submitBtn.disabled = false;
               submitBtn.innerHTML = originalBtnText;
@@ -1336,24 +1441,35 @@
         submitBtn.innerHTML = originalBtnText;
       }
     } else {
-      // Simulate COD processing via server
+      // Simulate COD processing directly to Supabase
       try {
-        const data = await apiRequest('/payment/save-cod', {
-          method: 'POST',
-          body: JSON.stringify({
-            customerDetails,
-            items,
-            totalAmount,
-            userId: state.token ? state.user?._id || state.user?.id : null
-          })
-        });
-        state.lastConfirmedOrder = data.order;
+        submitBtn.textContent = '⏳ Processing...';
+        const { data: { user } } = await window.MindSpace.supabase.auth.getUser();
+        const codOrderId = 'COD_' + Date.now();
+        const orderData = {
+          razorpayOrderId: codOrderId,
+          razorpayPaymentId: 'COD_' + Math.random().toString(36).substr(2, 9),
+          razorpaySignature: 'COD_SIMULATED',
+          user_id: user ? user.id : null,
+          items,
+          totalAmount,
+          customer: customerDetails,
+          status: 'captured',
+          createdAt: new Date().toISOString()
+        };
+
+        const { data, error } = await window.MindSpace.supabase.from('orders').insert([orderData]).select();
+        if (error) throw error;
+        
+        const savedOrder = data ? data[0] : orderData;
+
+        state.lastConfirmedOrder = savedOrder;
         state.cart = [];
         saveCart();
-        saveOrderLocally(data.order);
+        saveOrderLocally(savedOrder);
         renderCart();
         renderProducts(document.querySelector('.filter-btn.active')?.dataset.category || 'all');
-        setTimeout(() => showSuccessModal(data.order), 1000);
+        setTimeout(() => showSuccessModal(savedOrder), 1000);
       } catch (err) {
         showToast('Error processing COD order.', 'error');
         submitBtn.disabled = false;
@@ -1598,6 +1714,7 @@
 
   // ═══════════ EXPOSE GLOBAL FUNCTIONS ═══════════
   window.MindSpace = {
+    supabase: supabaseClient,
     deleteMood,
     deleteJournal,
     openCheckout,

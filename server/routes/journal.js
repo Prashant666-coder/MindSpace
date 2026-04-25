@@ -7,128 +7,160 @@
  * DELETE /api/journal/:id   – Delete a journal entry
  */
 
-const express = require('express');
-const Journal = require('../models/Journal');
-const authMiddleware = require('../middleware/auth');
+const express = require('express')
+const { getSupabase } = require('../supabase')
+const authMiddleware = require('../middleware/auth')
 
-const router = express.Router();
+const router = express.Router()
 
 // All journal routes require authentication
-router.use(authMiddleware);
+router.use(authMiddleware)
 
 /**
  * POST /api/journal
- * Create a new journal entry
  */
 router.post('/', async (req, res) => {
   try {
-    const { title, content, mood } = req.body;
-
+    const { title, content, mood } = req.body
     if (!title || !content) {
-      return res.status(400).json({ error: 'Title and content are required.' });
+      return res.status(400).json({ error: 'Title and content are required.' })
     }
 
-    const entry = new Journal({
-      userId: req.userId,
-      title,
-      content,
-      mood: mood || ''
-    });
+    const sb = getSupabase(req.supabaseToken)
 
-    await entry.save();
-    res.status(201).json({ message: 'Journal entry saved! 📝', entry });
+    const { data, error } = await sb
+      .from('journals')
+      .insert([{
+        userId: req.userId,
+        title,
+        content,
+        mood: mood || '',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      }])
+      .select()
+
+    if (error) throw error
+
+    res.status(201).json({ message: 'Journal entry saved! 📝', entry: data[0] })
   } catch (err) {
-    console.error('Journal creation error:', err);
-    res.status(500).json({ error: 'Failed to save journal entry.' });
+    console.error('Journal creation error:', err)
+    res.status(500).json({ error: 'Failed to save journal entry.' })
   }
-});
+})
 
 /**
  * GET /api/journal
- * Get all journal entries for the authenticated user
  */
 router.get('/', async (req, res) => {
   try {
-    const limit = parseInt(req.query.limit) || 50;
-    const offset = parseInt(req.query.offset) || 0;
+    const limit = parseInt(req.query.limit) || 50
+    const offset = parseInt(req.query.offset) || 0
 
-    const entries = await Journal.find({ userId: req.userId })
-      .sort({ createdAt: -1 })
-      .skip(offset)
-      .limit(limit);
+    const sb = getSupabase(req.supabaseToken)
 
-    const total = await Journal.countDocuments({ userId: req.userId });
+    const { data, error, count } = await sb
+      .from('journals')
+      .select('*', { count: 'exact' })
+      .eq('userId', req.userId)
+      .order('createdAt', { ascending: false })
+      .range(offset, offset + limit - 1)
 
-    res.json({ entries, total, limit, offset });
+    if (error) throw error
+
+    res.json({ entries: data || [], total: count, limit, offset })
   } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch journal entries.' });
+    console.error('Journal fetch error:', err)
+    res.status(500).json({ error: 'Failed to fetch journal entries.' })
   }
-});
+})
 
 /**
  * GET /api/journal/:id
- * Get a specific journal entry
  */
 router.get('/:id', async (req, res) => {
   try {
-    const entry = await Journal.findOne({
-      _id: req.params.id,
-      userId: req.userId
-    });
+    const sb = getSupabase(req.supabaseToken)
 
-    if (!entry) {
-      return res.status(404).json({ error: 'Journal entry not found.' });
+    const { data, error } = await sb
+      .from('journals')
+      .select('*')
+      .eq('id', req.params.id)
+      .eq('userId', req.userId)
+      .single()
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return res.status(404).json({ error: 'Journal entry not found.' })
+      }
+      throw error
     }
 
-    res.json({ entry });
+    res.json({ entry: data })
   } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch journal entry.' });
+    console.error('Journal get by id error:', err)
+    res.status(500).json({ error: 'Failed to fetch journal entry.' })
   }
-});
+})
 
 /**
  * PUT /api/journal/:id
- * Update an existing journal entry
  */
 router.put('/:id', async (req, res) => {
   try {
-    const { title, content, mood } = req.body;
+    const { title, content, mood } = req.body
+    const sb = getSupabase(req.supabaseToken)
 
-    const entry = await Journal.findOneAndUpdate(
-      { _id: req.params.id, userId: req.userId },
-      { title, content, mood, updatedAt: Date.now() },
-      { new: true, runValidators: true }
-    );
+    const { data, error } = await sb
+      .from('journals')
+      .update({
+        title,
+        content,
+        mood,
+        updatedAt: new Date().toISOString()
+      })
+      .eq('id', req.params.id)
+      .eq('userId', req.userId)
+      .select()
 
-    if (!entry) {
-      return res.status(404).json({ error: 'Journal entry not found.' });
+    if (error) throw error
+
+    if (!data || data.length === 0) {
+      return res.status(404).json({ error: 'Journal entry not found.' })
     }
 
-    res.json({ message: 'Journal entry updated! ✏️', entry });
+    res.json({ message: 'Journal entry updated! ✏️', entry: data[0] })
   } catch (err) {
-    res.status(500).json({ error: 'Failed to update journal entry.' });
+    console.error('Journal update error:', err)
+    res.status(500).json({ error: 'Failed to update journal entry.' })
   }
-});
+})
 
 /**
  * DELETE /api/journal/:id
- * Delete a journal entry
  */
 router.delete('/:id', async (req, res) => {
   try {
-    const entry = await Journal.findOneAndDelete({
-      _id: req.params.id,
-      userId: req.userId
-    });
+    const sb = getSupabase(req.supabaseToken)
 
-    if (!entry) {
-      return res.status(404).json({ error: 'Journal entry not found.' });
+    const { data, error } = await sb
+      .from('journals')
+      .delete()
+      .eq('id', req.params.id)
+      .eq('userId', req.userId)
+      .select()
+
+    if (error) throw error
+
+    if (!data || data.length === 0) {
+      return res.status(404).json({ error: 'Journal entry not found.' })
     }
 
-    res.json({ message: 'Journal entry deleted.', entry });
+    res.json({ message: 'Journal entry deleted.', entry: data[0] })
   } catch (err) {
-    res.status(500).json({ error: 'Failed to delete journal entry.' });
+    console.error('Journal deletion error:', err)
+    res.status(500).json({ error: 'Failed to delete journal entry.' })
   }
-});
+})
 
-module.exports = router;
+module.exports = router

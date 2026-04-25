@@ -106,49 +106,135 @@
     initAudio();
     const nodes = [];
 
-    // Subtle background pad (music)
-    const baseFreqs = [146.83, 196.00]; // D3, G3
-    baseFreqs.forEach((freq, i) => {
+    // ── Layer 1: Rustling Leaves (filtered noise with slow movement) ──
+    const leafBufferSize = audioCtx.sampleRate * 2;
+    const leafBuffer = audioCtx.createBuffer(1, leafBufferSize, audioCtx.sampleRate);
+    const leafData = leafBuffer.getChannelData(0);
+    // Pink-ish noise for natural rustling texture
+    let lb0 = 0, lb1 = 0, lb2 = 0, lb3 = 0, lb4 = 0, lb5 = 0, lb6 = 0;
+    for (let i = 0; i < leafBufferSize; i++) {
+      const white = Math.random() * 2 - 1;
+      lb0 = 0.99886 * lb0 + white * 0.0555179;
+      lb1 = 0.99332 * lb1 + white * 0.0750759;
+      lb2 = 0.96900 * lb2 + white * 0.1538520;
+      lb3 = 0.86650 * lb3 + white * 0.3104856;
+      lb4 = 0.55000 * lb4 + white * 0.5329522;
+      lb5 = -0.7616 * lb5 - white * 0.0168980;
+      leafData[i] = (lb0 + lb1 + lb2 + lb3 + lb4 + lb5 + lb6 + white * 0.5362) * 0.08;
+      lb6 = white * 0.115926;
+    }
+    const leafNoise = audioCtx.createBufferSource();
+    leafNoise.buffer = leafBuffer;
+    leafNoise.loop = true;
+
+    const leafFilter = audioCtx.createBiquadFilter();
+    leafFilter.type = 'bandpass';
+    leafFilter.frequency.value = 1200;
+    leafFilter.Q.value = 0.4;
+
+    // Slow LFO to make rustling breathe naturally
+    const leafLfo = audioCtx.createOscillator();
+    const leafLfoGain = audioCtx.createGain();
+    leafLfo.type = 'sine';
+    leafLfo.frequency.value = 0.15; // Gentle swaying
+    leafLfoGain.gain.value = 500;
+    leafLfo.connect(leafLfoGain).connect(leafFilter.frequency);
+    leafLfo.start();
+
+    const leafGain = audioCtx.createGain();
+    leafGain.gain.value = 0.14;
+
+    leafNoise.connect(leafFilter).connect(leafGain).connect(masterGain);
+    leafNoise.start();
+    nodes.push(leafNoise, leafLfo);
+
+    // ── Layer 2: Gentle Creek / Stream ──
+    const creekBufferSize = audioCtx.sampleRate * 2;
+    const creekBuffer = audioCtx.createBuffer(1, creekBufferSize, audioCtx.sampleRate);
+    const creekData = creekBuffer.getChannelData(0);
+    for (let i = 0; i < creekBufferSize; i++) {
+      creekData[i] = Math.random() * 2 - 1;
+    }
+    const creekNoise = audioCtx.createBufferSource();
+    creekNoise.buffer = creekBuffer;
+    creekNoise.loop = true;
+
+    const creekFilter = audioCtx.createBiquadFilter();
+    creekFilter.type = 'bandpass';
+    creekFilter.frequency.value = 2800;
+    creekFilter.Q.value = 1.5;
+
+    // LFO to create babbling/trickling effect
+    const creekLfo = audioCtx.createOscillator();
+    const creekLfoGain = audioCtx.createGain();
+    creekLfo.type = 'sine';
+    creekLfo.frequency.value = 0.4;
+    creekLfoGain.gain.value = 800;
+    creekLfo.connect(creekLfoGain).connect(creekFilter.frequency);
+    creekLfo.start();
+
+    const creekGain = audioCtx.createGain();
+    creekGain.gain.value = 0.06;
+
+    creekNoise.connect(creekFilter).connect(creekGain).connect(masterGain);
+    creekNoise.start();
+    nodes.push(creekNoise, creekLfo);
+
+    // ── Layer 3: Warm Harmonic Drone Pads (forest depth) ──
+    const padFreqs = [130.81, 196.00, 261.63]; // C3, G3, C4
+    padFreqs.forEach((freq, i) => {
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
-      osc.type = 'sine';
+      osc.type = i === 1 ? 'triangle' : 'sine';
       osc.frequency.value = freq;
+
+      // Slow detune for warm organic feel
+      const lfo = audioCtx.createOscillator();
+      const lfoG = audioCtx.createGain();
+      lfo.frequency.value = 0.04 + i * 0.015;
+      lfoG.gain.value = 1.5;
+      lfo.connect(lfoG).connect(osc.frequency);
+      lfo.start();
+
       gain.gain.setValueAtTime(0, audioCtx.currentTime);
-      gain.gain.linearRampToValueAtTime(0.015, audioCtx.currentTime + 2);
+      gain.gain.linearRampToValueAtTime(0.022 / (i + 1), audioCtx.currentTime + 3);
+
       osc.connect(gain).connect(masterGain);
       osc.start();
-      nodes.push(osc);
+      nodes.push(osc, lfo);
     });
 
-    // Integrated Bird Chirps
-    const interval = setInterval(() => {
-      if (isPlaying) playBirdChirp(1.8);
-    }, 2500);
+    // ── Layer 4: Subtle Distant Insect Hum ──
+    const insectOsc = audioCtx.createOscillator();
+    const insectGain = audioCtx.createGain();
+    insectOsc.type = 'sine';
+    insectOsc.frequency.value = 4200;
+    insectGain.gain.value = 0.006;
 
-    // Wind-like noise
-    const bufferSize = audioCtx.sampleRate * 2;
-    const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
-    const data = buffer.getChannelData(0);
-    for (let i = 0; i < bufferSize; i++) {
-      data[i] = (Math.random() * 2 - 1) * 0.025;
-    }
-    const windNoise = audioCtx.createBufferSource();
-    windNoise.buffer = buffer;
-    windNoise.loop = true;
+    const insectLfo = audioCtx.createOscillator();
+    const insectLfoGain = audioCtx.createGain();
+    insectLfo.frequency.value = 6;
+    insectLfoGain.gain.value = 0.004;
+    insectLfo.connect(insectLfoGain).connect(insectGain.gain);
+    insectLfo.start();
 
-    const windFilter = audioCtx.createBiquadFilter();
-    windFilter.type = 'lowpass';
-    windFilter.frequency.value = 450;
+    insectOsc.connect(insectGain).connect(masterGain);
+    insectOsc.start();
+    nodes.push(insectOsc, insectLfo);
 
-    windNoise.connect(windFilter).connect(masterGain);
-    windNoise.start();
-    nodes.push(windNoise);
+    // ── Layer 5: Occasional Gentle Bird Chirps (subtle, not dominant) ──
+    const birdInterval = setInterval(() => {
+      if (isPlaying && Math.random() > 0.4) {
+        playBirdChirp(0.5); // Much softer volume
+      }
+    }, 4000 + Math.random() * 3000); // Less frequent: 4-7 seconds apart
 
-    // Add interval to nodes cleanup (custom handling)
-    nodes.push({ stop: () => clearInterval(interval), disconnect: () => { } });
+    // Cleanup handle for the interval
+    nodes.push({ stop: () => clearInterval(birdInterval), disconnect: () => {} });
 
     return nodes;
   }
+
 
   function generateRainSounds() {
     initAudio();
@@ -666,6 +752,13 @@
   // ─── Ambient Sound Mixer ───────────────────────────────
   const mixerSources = {};
 
+  // Sound configs must be defined BEFORE the event handler so noise type lookup works
+  const soundConfigs = {
+    rain: { type: 'bandpass', freq: 1800, q: 0.2, noise: 'white' },
+    waves: { type: 'lowpass', freq: 500, q: 0.4, noise: 'white' },
+    birds: { type: 'highpass', freq: 3000, q: 0.2, noise: 'white' }
+  };
+
   document.querySelectorAll('.mixer-slider').forEach(slider => {
     slider.addEventListener('input', () => {
       const sound = slider.dataset.sound;
@@ -735,14 +828,7 @@
         const filter = audioCtx.createBiquadFilter();
         const gain = audioCtx.createGain();
 
-        // Different filter settings per sound type
-        const soundConfigs = {
-          rain: { type: 'bandpass', freq: 1800, q: 0.2, noise: 'white' },
-          waves: { type: 'lowpass', freq: 500, q: 0.4, noise: 'white' },
-          birds: { type: 'highpass', freq: 3000, q: 0.2, noise: 'white' },
-          fire: { type: 'bandpass', freq: 450, q: 0.6, noise: 'brown' },
-          wind: { type: 'lowpass', freq: 350, q: 0.3, noise: 'pink' }
-        };
+        // Filter settings per sound type (config defined above)
 
         const config = soundConfigs[sound] || { type: 'lowpass', freq: 1000, q: 0.5 };
         filter.type = config.type;
@@ -854,8 +940,16 @@
   function playFireCrackle(volume) {
     if (!audioCtx) return;
 
+    // Create a short noise burst buffer for each crackle
+    const bufferSize = Math.floor(audioCtx.sampleRate * 0.05); // 50ms burst
+    const crackleBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+    const data = crackleBuffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = (Math.random() * 2 - 1);
+    }
+
     const source = audioCtx.createBufferSource();
-    source.buffer = buffer;
+    source.buffer = crackleBuffer;
     const gain = audioCtx.createGain();
 
     gain.gain.setValueAtTime(volume * 0.25, audioCtx.currentTime); // Boosted crackle
