@@ -12,6 +12,8 @@
   const chatSendBtn = document.getElementById('chat-send-btn');
   const suggestionChips = document.querySelectorAll('.suggestion-chip');
   const chatMicBtn = document.getElementById('chat-mic-btn');
+  const voiceToggle = document.getElementById('chat-voice-toggle');
+  let isVoiceEnabled = localStorage.getItem('mindspace_chat_voice') !== 'false';
 
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition || null;
   const recognition = SpeechRecognition ? new SpeechRecognition() : null;
@@ -162,8 +164,36 @@
     typing.remove();
 
     addMessage(response, false);
-    speakText(response);
+    if (isVoiceEnabled) speakText(response);
     chatSendBtn.disabled = false;
+  }
+
+  // Voice Toggle Handler
+  function updateVoiceUI() {
+    if (!voiceToggle) return;
+    const span = voiceToggle.querySelector('span');
+    const icon = voiceToggle.querySelector('i');
+    
+    if (isVoiceEnabled) {
+      voiceToggle.classList.remove('muted');
+      span.textContent = 'Voice Enabled';
+      icon.setAttribute('data-lucide', 'volume-2');
+    } else {
+      voiceToggle.classList.add('muted');
+      span.textContent = 'Voice Muted';
+      icon.setAttribute('data-lucide', 'volume-x');
+    }
+    if (window.lucide) window.lucide.createIcons();
+  }
+
+  if (voiceToggle) {
+    voiceToggle.addEventListener('click', () => {
+      isVoiceEnabled = !isVoiceEnabled;
+      localStorage.setItem('mindspace_chat_voice', isVoiceEnabled);
+      updateVoiceUI();
+      if (!isVoiceEnabled) window.speechSynthesis.cancel();
+    });
+    updateVoiceUI();
   }
 
   // Event listeners

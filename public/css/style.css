@@ -1120,6 +1120,38 @@ a:hover {
   font-size: 0.95rem;
 }
 
+.chat-voice-toggle {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--glass-border);
+  border-radius: 20px;
+  width: fit-content;
+  font-size: 0.85rem;
+  transition: var(--transition);
+}
+
+.chat-voice-toggle:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.chat-voice-toggle.muted {
+  color: var(--text-muted);
+}
+
+.chat-voice-toggle.muted i {
+  color: #f87171;
+}
+
+.chat-voice-toggle i {
+  font-size: 1rem;
+  color: var(--primary-light);
+}
+
 .chat-messages {
   height: 450px;
   overflow-y: auto;
